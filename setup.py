@@ -5,5 +5,5 @@ setup(name='micropsi_integration_sdk',
       packages=['micropsi_integration_sdk'],
       package_dir={'micropsi_integration_sdk': './micropsi_integration_sdk'},
       description='integration SDK for micropsi Industries',
-      install_requires=['numpy==1.18.5'],
+      install_requires=['numpy'],
       )
