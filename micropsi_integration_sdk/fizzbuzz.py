@@ -1,2 +1,0 @@
-def fizzbuzz():
-    print("Fizzbuzz")
