@@ -1,4 +1,4 @@
-from robot_sdk import ServoRobot
+from micropsi_integration_sdk.robot_sdk import ServoRobot
 from collections import defaultdict
 import uuid
 import os
