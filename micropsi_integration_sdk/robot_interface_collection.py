@@ -1,5 +1,4 @@
 from micropsi_integration_sdk.robot_sdk import ServoRobot
-from collections import defaultdict
 import importlib.util
 import uuid
 import os
@@ -9,7 +8,7 @@ import inspect
 
 class RobotInterfaceCollection:
     def __init__(self):
-        self.__robots = defaultdict(dict)
+        self.__robots = {}
 
     def list_robots(self):
         return list(self.__robots.keys())
