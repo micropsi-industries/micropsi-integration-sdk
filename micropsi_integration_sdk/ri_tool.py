@@ -279,30 +279,50 @@ def gen_random_actions(dim=3, dist=0.1):
     return actions
 
 
+def get_path(path):
+    if path.startswith("./"):
+        import os
+        path = os.getcwd() + path[1:]
+
+    from pathlib import Path
+
+    if not Path(path).is_file():
+        raise FileNotFoundError(path)
+
+    #for Testing
+    res = [i for i, ltr in enumerate(path) if ltr == "/"]
+    fpath = path[:res[len(res)-1]+1]
+
+    return path, fpath
+
+
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--r")
-    parser.add_argument("--t")
+    parser.add_argument("--r", "--robot_model", required=True)
+    parser.add_argument("--p", "--path", required=True)
+    parser.add_argument("--d", "--directions")
     return parser.parse_args()
 
 
 def main():
     global thread
     args = parse_args()
-
     robot_model = args.r
-    dimensions = args.t
+    dimensions = args.d
+    path = args.p
 
+    path, fpath = get_path(path)
     if dimensions is None or int(dimensions) > 4 or int(dimensions) < 0:
         dimensions = 3
     else:
         dimensions = int(dimensions)
-    print("Moving in {} dimensions".format(dimensions))
+    print("Moving in {} axes".format(dimensions))
 
     collection = RobotInterfaceCollection()
 
-    robot_path = os.path.expanduser("~/git/micropsi-worlds/ur/ur_robot.py")
-
+    import sys
+    sys.path.append(fpath)
+    robot_path = os.path.expanduser(path)
     collection.load_interface_file(robot_path)
     supported_robots = sorted(collection.list_robots())
 
