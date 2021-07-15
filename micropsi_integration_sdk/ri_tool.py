@@ -2,7 +2,6 @@ from numpy.lib.function_base import _DIMENSION_NAME
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 from operator import pos
 from argparse import ArgumentParser
-from numpy import rad2deg as dd
 
 import numpy as np
 import os
@@ -11,6 +10,8 @@ import time
 import threading
 
 DEFAULT_IP = "192.168.100.100"
+MAX_TCP_SPEED = 0.1
+DEFAULT_TCP_SPEED = 0.1
 ACCURACY_MAX = 0.1
 JNT_ACCURACY = 1e-2
 TCP_ACCURACY = 1e-2
@@ -187,7 +188,7 @@ def manual_step(rob, step):
     return jnt, tcp, step+1
 
 
-def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM, rob_frequency):
+def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM_JNT,SPEED_LIM_TCP, rob_frequency, dist):
     global LAST_TARGET, MOVING, MOVE_REQ
     import time
 
@@ -195,28 +196,29 @@ def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM, rob_frequency):
     assert jnt_0 is not None
     if LAST_TARGET is not None:
         jnt_0 = LAST_TARGET.copy()
+
     jnt_diff = jnt_f - jnt_0
     vel = jnt_diff * rob_frequency
+    max_vel_ovrshoot = max(vel - SPEED_LIM_JNT)
+    delta_jnt = max(math.ceil(max_vel_ovrshoot), 1)
 
-    max_vel_ovrshoot = max(vel - SPEED_LIM)
-    factor = max(math.ceil(max_vel_ovrshoot), 1)
+    sec = dist / SPEED_LIM_TCP
+    delta = max(dist * rob_frequency/SPEED_LIM_TCP, delta_jnt)
+    jnt_diff = jnt_f - jnt_0
+
+    jnt_delta = jnt_diff/delta
     jnt_ = jnt_0.copy()
-    jnt_delta = jnt_diff/factor
 
-    for i in range(factor):
+    for i in range (int(math.ceil(delta))):
         jnt_ = jnt_ + jnt_delta
         MOVE_REQ = True
+        rob.send_joint_positions(jnt_, rob_frequency, step)
+        j, t, step = manual_step(rob, step)
+        time.sleep(1/rob_frequency)
 
-        while not check_if_equal(jnt_, STATE.joint_positions, JNT_ACCURACY):
-            rob.send_joint_positions(jnt_, rob_frequency, step)
-            j, t, step = manual_step(rob, step)
-
-        if not check_if_equal(jnt_0, jnt_f, JNT_ACCURACY):
-            while MOVE_REQ and not MOVING:
-                print("Waiting for robot to start moving")
-                time.sleep(0.001)
-        MOVE_REQ = False
-    rob.send_joint_positions(jnt_f, rob_frequency, step)
+    while not check_if_equal(jnt_f, STATE.joint_positions, JNT_ACCURACY):
+        rob.send_joint_positions(jnt_f, rob_frequency, step)
+        j, t, step = manual_step(rob, step)
 
     MOVE_REQ = False
     LAST_TARGET = np.array(jnt_f.copy())
@@ -228,11 +230,11 @@ def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM, rob_frequency):
     return step
 
 
-def move_robot(rob, step, action, **kwargs):
+def move_robot(rob, step, action,dist, **kwargs):
     jnt_0, tcp_0, step = manual_step(rob, step)
     jnt_0_z, tcp_0_z = get_modified_joints(rob, tcp_0, jnt_0, trans=action)
 
-    step = move_joints(rob, jnt_0_z, jnt_0, step, **kwargs)
+    step = move_joints(rob, jnt_0_z, jnt_0, step,dist=dist, **kwargs)
 
     jnt_1, tcp_1, step = manual_step(rob, step)
 
@@ -306,24 +308,31 @@ def get_path(path):
 def parse_args():
 
     parser = ArgumentParser()
-    parser.add_argument("--p", required=True,
+    parser.add_argument("-p", "--path", required=True,
                         help="path to the Robot implementation")
-    parser.add_argument("--r", required=True, 
+    parser.add_argument("-r", "--robot_model", required=True, 
                         help="Robot Model as defined in the implementation")
-    parser.add_argument("--f", default=FREQUENCY,
-                        help="Frequency of the Robot in Hz")
-    parser.add_argument("--d", default="3",
+    parser.add_argument("-f", "--frequency", default=FREQUENCY,
+                        help="Frequency of the Robot in Hz. Default: {}Hz."
+                        " Maximum Frequency {}".format(FREQUENCY, MAX_FREQUENCY))
+    parser.add_argument("-sp", "--tcp_speed", default=DEFAULT_TCP_SPEED, help=" TCP "
+                        "speed in meter per second Default: {}, "
+                        "Max: {}".format(DEFAULT_TCP_SPEED,MAX_TCP_SPEED))
+    parser.add_argument("-d", "--dimension", default="3",
                         help="Number of Axis to move the robot in. Default: 3")
 
-    parser.add_argument("--l", default=LENGTH, help="Length of Movement in "
-                        "meters, Default: 0.05 meters, Max: 0.1")
-    parser.add_argument("--ip", default=DEFAULT_IP, help="IP address of the "
-                        "robot. Default: 192.168.100.100")
+    parser.add_argument("-l", "--length", default=LENGTH, help="Length of movement in "
+                        "meters, Default:{} meters, Max: {}"
+                        "".format(LENGTH, MAX_LENGTH))
 
-    parser.add_argument("--aj", default=JNT_ACCURACY,  help="Accuracy of the "
-                        "robot joints Default: 0.001 ")
-    parser.add_argument("--at", default=TCP_ACCURACY, help="Accuracy of the "
-                        "TCP position achieved by robot Default: 0.001 ")
+    parser.add_argument("-ip", "--ip_address", default=DEFAULT_IP, help="IP address of "
+                        "the robot. Default: {}".format(DEFAULT_IP))
+
+    parser.add_argument("-j", "--joint_accuracy", default=JNT_ACCURACY,  help="Accuracy "
+                        "of the robot joints Default: {}".format(JNT_ACCURACY))
+    parser.add_argument("-t", "--tcp_accuracy", default=TCP_ACCURACY, help="Accuracy of "
+                        "the TCP position achieved by robot. "
+                        "Default: {}".format(TCP_ACCURACY))
 
     return parser.parse_args()
 
@@ -334,12 +343,13 @@ def main():
 
     path = args.p
     robot_model = args.r
-    robot_frequency = args.f if args.f <= MAX_FREQUENCY else MAX_FREQUENCY
+    robot_frequency = float(args.f) if float(args.f) <= MAX_FREQUENCY else MAX_FREQUENCY
     dimensions = int(args.d) if (int(args.d) < 4 and int(args.d) > 0) else 1
-    dist = args.l if args.l <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
+    dist = float(args.l) if float(args.l) <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
     robot_ip = args.ip
-    JNT_ACCURACY = args.aj if args.aj <= ACCURACY_MAX else ACCURACY_MAX
-    TCP_ACCURACY = args.at if args.at <= ACCURACY_MAX else ACCURACY_MAX
+    JNT_ACCURACY = float(args.aj) if float(args.aj) <= ACCURACY_MAX else ACCURACY_MAX
+    TCP_ACCURACY = float(args.at) if float(args.at) <= ACCURACY_MAX else ACCURACY_MAX
+    TCP_SPEED_LIM = float(args.sp) if float(args.sp) <= 0.1 else 0.1
 
     path = get_path(path)
 
@@ -388,7 +398,7 @@ def main():
         THREAD.start()
         print("Connected to Robot {}".format(robot_model))
         JOINT_SPEED_LIM = rob.get_joint_speed_limits()
-        time.sleep(1)
+        time.sleep(0.1)
         assert STATE is not None
         jnt_cnt = rob.get_joint_count()
         jnt_speed_lmt = rob.get_joint_speed_limits()
@@ -418,15 +428,16 @@ def main():
 
         kwargs = {
                 "rob_frequency": robot_frequency,
-                "SPEED_LIM": JOINT_SPEED_LIM
+                "SPEED_LIM_JNT": JOINT_SPEED_LIM,
+                "SPEED_LIM_TCP": TCP_SPEED_LIM
         }
 
-        move_joints(rob, jnt_0, jnt_0, step, **kwargs)
+        move_joints(rob, jnt_0, jnt_0, step,dist=dist, **kwargs)
         actions = gen_random_actions(dimensions, dist=dist)
 
         for i in range(len(actions)):
             print("Moving to: Position  {}".format(i + 1))
-            step, j0, jf, tf = move_robot(rob, step, actions[i], **kwargs)
+            step, j0, jf, tf = move_robot(rob, step, actions[i],dist=dist, **kwargs)
             time.sleep(2.1)
 
         assert check_if_equal(tcp_0, tf, TCP_ACCURACY, pose=True)
