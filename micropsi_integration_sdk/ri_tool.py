@@ -358,6 +358,34 @@ def get_path(path):
     return path
 
 
+def assert_wrapper(cond, txt, rob=None):
+    """
+    Assert wrapper, with text describing the test
+    """
+    global THREAD
+    try:
+        assert cond
+    except Exception as e:
+        try:
+            close(THREAD, rob)
+        except:
+            pass
+        raise_wrapper(e, st=txt)
+
+
+def raise_wrapper(e, st="", st_0=""):
+    if e is not None:
+        if len(e.args) > 0:
+            s = e.args[0]
+        else:
+            s = ""
+        st_0 = type(e).__name__ + ": " + s
+
+    print("{}. {}".format(st_0, st))
+
+    exit()
+
+
 def parse_args():
 
     parser = ArgumentParser()
@@ -415,17 +443,12 @@ def main():
     supported_robots = sorted(collection.list_robots())
 
     if len(supported_robots) == 0:
-        raise NotImplementedError(" No Robot Implementation found")
+        raise_wrapper(NotImplementedError, st=" No Robot Implementation found")
 
-    if robot_model is None and len(supported_robots) == 1:
-        print("Robot model not specified, Starting robot "
-              "{}".format(supported_robots[0]))
-        robot_model = supported_robots[0]
-    else:
-        try:
-            supported_robots.index(robot_model)
-        except ValueError:
-            raise NotImplementedError("Unknown/unsupported Robot model")
+    try:
+        supported_robots.index(robot_model)
+    except ValueError as e:
+        raise_wrapper(e, st="Unknown/unsupported Robot model")
 
     robot_interface = collection.get_robot_interface(robot_model)
 
@@ -445,9 +468,11 @@ def main():
     rob = robot_interface(**robot_kwargs)
 
     THREAD = threading.Thread(target=read, args=(rob, robot_frequency))
-    assert rob.get_model() is robot_model
+    assert_wrapper(rob.get_model() is robot_model,
+                   "Invalid Robot model loaded", rob)
     try:
-        assert rob.connect()
+        print("Attempting to connect to Robot")
+        assert_wrapper(rob.connect(), "Robot connection", rob)
         THREAD.start()
         print("Connected to Robot {}".format(robot_model))
         JOINT_SPEED_LIM = rob.get_joint_speed_limits()
@@ -497,12 +522,13 @@ def main():
         assert check_if_equal(jnt_0, jf, JNT_ACCURACY)
 
     except Exception as e:
-        close(THREAD, rob)
-        err = ""
-        if type(e) is AssertionError:
-            err = "Assertion Failed"
-            raise Exception(err)
+        try:
+            close(THREAD, rob)
+        except:
+            pass
 
+        if thread_stopped:
+            raise_wrapper(None, st="Robot communication failed", st_0="ERROR")
         raise e
 
     close(THREAD, rob)
