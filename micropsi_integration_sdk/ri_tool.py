@@ -32,17 +32,6 @@ MOVE_REQ = False
 THREAD = None
 
 
-def get_state(rob):
-    state = None
-    while state is None:
-        state = rob.get_hardware_state()
-        if state is None:
-            rob.clear_cached_hardware_state()
-            time.sleep(1)
-            rob.connect()
-    assert state is not None
-    return state
-
 
 def set_R_with_fixed_XYZ(new_T, orientation):
     from math import sin, cos
@@ -244,13 +233,15 @@ def move_robot(rob, step, action,dist, **kwargs):
     return step, jnt_0, jnt_0_z, tcp_1
 
 
-def close(THREAD, rob):
+def close(thread, rob):
+    """
+    # Shutdowns Thread and close the connection to the robot
+    """
     global RUNNING
-
-    # Close Thread
-    if THREAD is not None and THREAD.is_alive():
+    if thread is not None and thread.is_alive():
         RUNNING = False
-        THREAD.join()
+        thread.join()
+
     # Release Control
     if rob is not None:
         rob.release_control()
@@ -258,24 +249,55 @@ def close(THREAD, rob):
     print("{} Disconnected".format(rob.get_model()))
 
 
-def read(robot_interface, frequency):
-    global STATE, RUNNING, MOVING, MOVE_REQ
+class robot_communication(threading.Thread):
+    """
+    Connection thread to continuously fetch the robot state
+    """
+    def __init__(self, robot_interface, frequency):
+        assert_wrapper(robot_interface is not None,
+                       "Invalid robot interface")
+        self._robot_interface = robot_interface
+        self._frequency = frequency
+        self._last_posj = None
+        threading.Thread.__init__(self)
 
-    assert robot_interface is not None
-    cnt = 0
-    last_posj = None
+    def run(self):
+        global STATE, RUNNING, MOVING, MOVE_REQ, thread_stopped
+        try:
+            thread_stopped = False
 
-    time.sleep(1/frequency)
-    while (RUNNING):
-        t1 = time.time()
-        STATE = get_state(robot_interface)
-        if last_posj is not None:
-            if check_if_equal(last_posj, STATE.joint_positions, 0.0001):
-                MOVING = False
-            else:
-                MOVING = True
-                MOVE_REQ = False
-        last_posj = STATE.joint_positions.copy()
+            while RUNNING:
+                STATE = self.get_state()
+                if self._last_posj is not None:
+                    if check_if_equal(last_posj, STATE.joint_positions,
+                                      DEFAULT_ACC):
+                        MOVING = False
+                    else:
+                        MOVING = True
+                        MOVE_REQ = False
+                    last_posj = STATE.joint_positions.copy()
+        except Exception as e:
+            thread_stopped = True
+            raise(e)
+
+    def get_state(self):
+        """
+        Connect to the robot and read the state.
+        """
+        state = None
+        cnt = 0
+        while state is None:
+            cnt += 1
+            state = self._robot_interface.get_hardware_state()
+            if state is None:
+                if cnt > 10:
+                    raise InterruptedError("Invalid state recieved, check"
+                                           " robot connection")
+
+                self._robot_interface.clear_cached_hardware_state()
+                time.sleep(0.5)
+                self._robot_interface.connect()
+        return state
 
 
 def gen_random_actions(dim=3, dist=0.1):
