@@ -30,6 +30,8 @@ MOVE_REQ = False
 THREAD = None
 thread_stopped = True
 
+DEBUG = False
+
 
 def set_R_with_fixed_XYZ(new_T, orientation):
     rx = orientation[0]
@@ -400,7 +402,8 @@ def raise_wrapper(e, st="", st_0=""):
         st_0 = type(e).__name__ + ": " + s
 
     print("{}. {}".format(st_0, st))
-
+    if DEBUG:
+        raise
     exit()
 
 
@@ -442,17 +445,18 @@ def parse_args():
                           type=float, metavar='\b',
                           help="Accuracy of the TCP position achieved by "
                           "robot. Default: {}".format(DEFAULT_ACC)),
-
+    optional.add_argument("-db", "--debug", action="store_true",
+                          help="(Flag) Enable traceback of failed tests.")
     return parser.parse_args()
 
 
 def main():
-    global THREAD
+    global THREAD, DEBUG
     args = parse_args()
     path = args.path
     robot_model = args.robot
     robot_ip = args.ip
-
+    DEBUG = args.debug
 
     robot_frequency = args.frequency if args.frequency <= MAX_FREQUENCY else MAX_FREQUENCY
     dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
