@@ -62,6 +62,7 @@ def set_R_with_fixed_XYZ(new_T, orientation):
 
 
 def create_with_fixed_angle_pose(position, orientation):
+    """ Creates TF matrix from position and orientation"""
     new_T = np.identity(4)
     new_T[0:3, 3] = position
     new_T = set_R_with_fixed_XYZ(new_T, orientation)
@@ -69,6 +70,9 @@ def create_with_fixed_angle_pose(position, orientation):
 
 
 def get_modified_joints(rob, tcp, jnt, trans=[0., 0., 0.], rot=[0., 0., 0.]):
+    """
+    Gets joint target from the actions.
+    """
 
     tcp_2 = np.zeros(6)
     for i in range(3):
@@ -82,6 +86,10 @@ def get_modified_joints(rob, tcp, jnt, trans=[0., 0., 0.], rot=[0., 0., 0.]):
 
 def check_if_equal(arr_1, arr_2, E, pose=False):
 
+    """
+    Checks if two incomming poses are equivalent (delta < E).
+    For pose only the linear component of position is verified
+    """
     arr1 = arr_1.copy()
     arr2 = arr_2.copy()
     assert len(arr1) == len(arr2)
@@ -102,7 +110,7 @@ def get_nearest_equivalent(a1, a0=0):
 
 
 def signed_angle_resolution(T, sign=+1, reference=(0, 0, 0)):
-    from math import atan2
+    """Represent a rot. matrix as one of two possible triples of angles."""
     assert sign == +1 or sign == -1
 
     cosay_squared = T[0, 0]**2 + T[1, 0]**2
@@ -142,6 +150,9 @@ def signed_angle_resolution(T, sign=+1, reference=(0, 0, 0)):
 
 
 def get_major_angles(tcp_0, reference=(0, 0, 0)):
+    """
+    Represent a rotation matrix as three angles of major-axis rotation.
+    """
     candidates = []
 
     for sign in [-1, +1]:
@@ -164,7 +175,9 @@ def get_orientation_as_fixed_XYZ(tcp_0, reference=(0, 0, 0)):
 
 
 def fix_tcp(tcp_0):
-
+    """
+    Converts TF matrix into 6d array with fixed angle orientation
+    """
     t = np.zeros(6)
     t[:3] = tcp_0[0:3, 3]
     t[3:] = get_orientation_as_fixed_XYZ(tcp_0)
@@ -178,6 +191,11 @@ def manual_step(rob, step):
 
 
 def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM_JNT,SPEED_LIM_TCP, rob_frequency, dist):
+    """
+    Moves the robot to target joint positions, by breaking down the delta into
+    smaller deltas to sync with the frequency of robot communication.
+
+    """
     global LAST_TARGET, MOVING, MOVE_REQ
     import time
 
@@ -220,6 +238,9 @@ def move_joints(rob, jnt_f, jnt_0, step, SPEED_LIM_JNT,SPEED_LIM_TCP, rob_freque
 
 
 def move_robot(rob, step, action,dist, **kwargs):
+    """
+    Computes target joint values from actions and sends it to robot
+    """
     jnt_0, tcp_0, step = manual_step(rob, step)
     jnt_0_z, tcp_0_z = get_modified_joints(rob, tcp_0, jnt_0, trans=action)
 
@@ -235,7 +256,7 @@ def move_robot(rob, step, action,dist, **kwargs):
 
 def close(thread, rob):
     """
-    # Shutdowns Thread and close the connection to the robot
+    Shutdowns Thread and close the connection to the robot
     """
     global RUNNING
     if thread is not None and thread.is_alive():
@@ -301,6 +322,12 @@ class robot_communication(threading.Thread):
 
 
 def gen_random_actions(dim=3, dist=0.1):
+    """
+    Generate action sets in random order.
+    Args:
+        dim: Number of axes to move in.
+        dist: Length of action in m
+    """
     import random
     actions = []
     ax = [2, 0, 1]
@@ -315,6 +342,10 @@ def gen_random_actions(dim=3, dist=0.1):
 
 
 def get_path(path):
+    """
+    Extract path from string
+    """
+
     if path.startswith("./"):
         import os
         path = os.getcwd() + path[1:]
