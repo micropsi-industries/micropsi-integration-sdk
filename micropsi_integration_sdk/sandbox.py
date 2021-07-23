@@ -253,7 +253,7 @@ def extract_path(path):
         path = os.path.abspath(path)
 
     from pathlib import Path
-    robot_implementation = Path(path) 
+    robot_implementation = Path(path)
     if not robot_implementation.is_file():
         print("FileNotFoundError: Robot implementation not found at path"
               ": {}".format(path))
@@ -269,9 +269,8 @@ def parse_args():
     optional = parser.add_argument_group("optional arguments")
 
     required.add_argument("path", help="Path to the Robot implementation")
-
-    required.add_argument("-r", "--robot", required=True, metavar='\b',
-                          help="Robot Model as defined in the implementation")
+    required.add_argument("robot", nargs='?', default=None, help="Name of the"
+                          " robot model as defined in the implementation")
     optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
                           metavar='\b', type=float,
                           help="Frequency of the Robot in Hz. Default: {}Hz."
@@ -330,6 +329,16 @@ def main():
     if len(supported_robots) == 0:
         raise_wrapper(NotImplementedError,
                       err_txt=" No Robot Implementation found")
+    if robot_model is None:
+        if len(supported_robots) > 1:
+            print("Multiple robot implmentations found.")
+            print("Please enter the robot Model to use: {}".format(supported_robots))
+            robot_model = input("Model: ")
+        else:
+            print("Robot implementation found: {}".format(supported_robots[0]))
+            print("Loading {} in 5 seconds..".format(supported_robots[0]))
+            time.sleep(5)
+            robot_model = supported_robots[0]
 
     try:
         supported_robots.index(robot_model)
