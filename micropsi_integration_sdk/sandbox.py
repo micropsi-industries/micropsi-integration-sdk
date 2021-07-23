@@ -25,38 +25,6 @@ MAX_LENGTH = 0.1
 
 THREAD = None
 last_target = None
-thread_stopped = True
-
-
-def assert_wrapper(cond, txt):
-    """
-    Assert wrapper, with text describing the test
-    """
-    global THREAD
-    try:
-        if DEBUG:
-            print("TESTING {}".format(txt))
-        assert cond
-    except Exception as e:
-        try:
-            THREAD.close()
-        except:
-            pass
-        raise_wrapper(e, err_txt=txt)
-
-
-def raise_wrapper(e, err_txt="", error_title=""):
-    if e is not None:
-        if len(e.args) > 0:
-            s = e.args[0]
-        else:
-            s = ""
-        error_title = type(e).__name__ + ": " + s
-
-    print("{}. {}".format(error_title, err_txt))
-    if DEBUG:
-        raise
-    exit()
 
 
 def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
@@ -69,7 +37,7 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
     arr2 = arr_2.copy()
 
     p = "TCP" if pose else "Joint"
-    assert_wrapper(len(arr1) == len(arr2), "Invalid {} pose".format(p))
+    assert len(arr1) == len(arr2), "Invalid {} pose".format(p)
 
     if pose:
         arr1[3:6] = [0., 0., 0]
@@ -91,7 +59,7 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
             e_txt2 = " Expected: Pose {},".format(arr_1[:3])
             e_txt3 = " Recieved: Pose {}.".format(arr_2[:3])
         e_txt = e_txt1 + e_txt2 + e_txt3
-        assert_wrapper(ret, e_txt)
+        assert ret, e_txt
 
     return ret
 
@@ -164,8 +132,7 @@ class RobotCommunication(threading.Thread):
     Connection thread to continuously fetch the robot state
     """
     def __init__(self, robot_interface, frequency):
-        assert_wrapper(robot_interface is not None,
-                       "Invalid robot interface")
+        assert robot_interface is not None, "Invalid robot interface"
         self.rob = robot_interface
         self._frequency = frequency
         self.state = None
@@ -176,10 +143,13 @@ class RobotCommunication(threading.Thread):
         self.overshoot_flag = False
         self.overshoot_time = None
 
+        self.debug_error = None
+        self.thread_stopped = False
+
     def run(self):
-        global thread_stopped
+        #global thread_stopped
         try:
-            thread_stopped = False
+            self.thread_stopped = False
 
             while self.running:
                 start = datetime.now()
@@ -197,8 +167,9 @@ class RobotCommunication(threading.Thread):
                 self.overshoot(overshoot_flag)
 
         except Exception as e:
-            thread_stopped = True
-            raise_wrapper(e)
+            self.thread_stopped = True
+            self.debug_error = e
+            #raise 
 
     def overshoot(self, overshoot_flag):
         if not (overshoot_flag or self.overshoot_flag):
@@ -334,12 +305,12 @@ def parse_args():
 
 
 def main():
-    global THREAD, DEBUG
+    global THREAD
     args = parse_args()
     path = args.path
     robot_model = args.robot
     robot_ip = args.ip
-    DEBUG = args.verbose
+    debug = args.verbose
 
     robot_frequency = args.frequency
     dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
@@ -355,56 +326,61 @@ def main():
     collection.load_interface_file(robot_path)
     supported_robots = sorted(collection.list_robots())
 
-    if len(supported_robots) == 0:
-        raise_wrapper(NotImplementedError,
-                      err_txt=" No Robot Implementation found")
-    if robot_model is None:
-        if len(supported_robots) > 1:
-            print("Multiple robot implmentations found.")
-            print("Please enter the robot Model to use: {}".format(supported_robots))
-            robot_model = input("Model: ")
-        else:
-            print("Robot implementation found: {}".format(supported_robots[0]))
-            print("Loading {} in 5 seconds..".format(supported_robots[0]))
-            time.sleep(5)
-            robot_model = supported_robots[0]
-
     try:
-        supported_robots.index(robot_model)
-    except ValueError as e:
-        raise_wrapper(e, err_txt="Unknown/unsupported Robot model")
+        if len(supported_robots) == 0:
+            raise NotImplementedError("No Robot Implementation found.")
 
-    robot_interface = collection.get_robot_interface(robot_model)
+        if robot_model is None:
+            if len(supported_robots) > 1:
+                print("Multiple robot implmentations found.")
+                print("Please enter the robot Model to use: {}".format(supported_robots))
+                robot_model = input("Model: ")
+            else:
+                print("Robot implementation found: {}".format(supported_robots[0]))
+                print("Loading {} in 5 seconds..".format(supported_robots[0]))
+                time.sleep(5)
+                robot_model = supported_robots[0]
 
-    robot_kwargs = {
-        "frequency": robot_frequency,
-        "model": robot_model,
-        "ip_address": robot_ip,
-    }
+        try:
+            supported_robots.index(robot_model)
+        except ValueError as e:
+            raise NotImplementedError("Unknown/unsupported Robot model")
 
-    guide_with_internal_sensor = False
-    if robot_interface.has_internal_ft_sensor():
-        guide_with_internal_sensor = True
-        robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_sensor
-    rob = robot_interface(**robot_kwargs)
+        robot_interface = collection.get_robot_interface(robot_model)
 
-    if rob is None:
-        raise_wrapper()
+        robot_kwargs = {
+            "frequency": robot_frequency,
+            "model": robot_model,
+            "ip_address": robot_ip,
+        }
 
-    THREAD = RobotCommunication(rob, robot_frequency)
-    assert_wrapper(rob.get_model() is robot_model,
-                   "Invalid Robot model loaded")
+        guide_with_internal_sensor = False
+        if robot_interface.has_internal_ft_sensor():
+            guide_with_internal_sensor = True
+            robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_sensor
+        rob = robot_interface(**robot_kwargs)
 
-    print("Robot {} implementation loaded".format(rob.get_model()))
-    try:
+        assert rob is not None, "Robot"
+        if rob is None:
+            raise Exception("Failed to load Robot implementation")
+
+        THREAD = RobotCommunication(rob, robot_frequency)
+        assert rob.get_model() is robot_model, "Invalid Robot model loaded"
+
+        print("Robot {} implementation loaded".format(rob.get_model()))
         print("Connecting to Robot{}".format(robot_model))
-        assert_wrapper(rob.connect(), "Robot connection")
+        try:
+            assert rob.connect(), "Robot connection failed"
+        except Exception as e:
+            err_txt = type(e).__name__
+            raise ConnectionError("Robot connection failed. " + err_txt)
+
         THREAD.start()
-        while THREAD.state is None and not thread_stopped:
+        while THREAD.state is None and not THREAD.thread_stopped:
             time.sleep(0.1)
         print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
-        assert_wrapper(THREAD.state is not None, "Invalid Robot State")
+        assert THREAD.state is not None, "Invalid Robot State"
 
         jnt_cnt = rob.get_joint_count()
         jnt_speed_lmt = rob.get_joint_speed_limits()
@@ -412,13 +388,12 @@ def main():
         has_internal_ft = rob.has_internal_ft_sensor()
 
         if has_internal_ft and guide_with_internal_sensor:
-            assert_wrapper(len(THREAD.state.raw_wrench) == 6,
-                           "Invalid FT data")
+            assert len(THREAD.state.raw_wrench) == 6, "Invalid FT data"
 
         jnt_e = "Invalid joint positions"
-        assert_wrapper(len(THREAD.state.joint_positions) == jnt_cnt, jnt_e)
-        assert_wrapper(len(jnt_pos_lmt) == jnt_cnt, jnt_e)
-        assert_wrapper(len(jnt_speed_lmt) == jnt_cnt, jnt_e)
+        assert len(THREAD.state.joint_positions) == jnt_cnt, jnt_e
+        assert len(jnt_pos_lmt) == jnt_cnt, jnt_e
+        assert len(jnt_speed_lmt) == jnt_cnt, jnt_e
 
         rob.connect()
 
@@ -458,15 +433,32 @@ def main():
         check_if_equal(jnt_0, jf, jnt_accuracy, assrt=True)
 
     except Exception as e:
+        e_list = []
+        if THREAD and THREAD.debug_error is not None:
+            e_list.insert(len(e_list), THREAD.debug_error)
+        elif THREAD and THREAD.thread_stopped:
+            err = RuntimeError("Robot communication failed")
+            e_list.insert(len(e_list),err)
+        e_list.insert(len(e_list),e)
+        for  err in e_list:
+            if err is not None:
+                if len(err.args) > 0:
+                    s = err.args[0]
+                else:
+                    s = ""
+                err_txt = type(err).__name__ + ": " + s
+            print (err_txt)
+
+
         try:
             THREAD.close()
         except:
             pass
 
-        if thread_stopped:
-            raise_wrapper(None, err_txt="Robot communication failed",
-                          error_title="ERROR")
-        raise e
+        if debug:
+            raise
+        exit()
+
 
     THREAD.close()
 
