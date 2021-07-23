@@ -293,6 +293,7 @@ def extract_path(path):
 def parse_args():
     parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool")
     parser._action_groups.pop()
+
     required = parser.add_argument_group("requried arguments")
     optional = parser.add_argument_group("optional arguments")
 
@@ -304,7 +305,7 @@ def parse_args():
                           help="Frequency of the Robot in Hz. Default: {}Hz."
                           "".format(DEF_FREQUENCY))
 
-    optional.add_argument("-sp", "--tcp_speed", default=DEFAULT_TCP_SPEED,
+    optional.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED,
                           type=float, metavar='\b', help=" TCP "
                           "speed in meter per second Default: {}, "
                           "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
@@ -313,21 +314,21 @@ def parse_args():
                           "the robot in. Default: 1")
 
     optional.add_argument("-l", "--length", default=LENGTH, type=float,
-                          metavar='\b', help="Length of movement in meters, "
-                          "Default:{}m, Max: {}m".format(LENGTH, MAX_LENGTH))
+                          metavar='\b', help="Length of movement, Default:"
+                          "{} meters , Max: {}m".format(LENGTH, MAX_LENGTH))
 
     optional.add_argument("-ip", "--ip", default=DEFAULT_IP, metavar='\b',
                           help="IP address of the robot. Default:"
                           " {}".format(DEFAULT_IP))
 
-    optional.add_argument("-j", "--joint_accuracy", default=DEFAULT_ACC,
+    optional.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC,
                           type=float, metavar='\b', help="Accuracy of the "
-                          "robot joints. Default: {}".format(DEFAULT_ACC))
-    optional.add_argument("-t", "--tcp_accuracy", default=DEFAULT_ACC,
+                          "robot joints. Default: {} radians".format(DEFAULT_ACC))
+    optional.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC,
                           type=float, metavar='\b',
                           help="Accuracy of the TCP position achieved by "
-                          "robot. Default: {}".format(DEFAULT_ACC)),
-    optional.add_argument("-db", "--debug", action="store_true",
+                          "robot. Default: {} meters".format(DEFAULT_ACC)),
+    optional.add_argument("-v", "--verbose", action="store_true",
                           help="(Flag) Enable traceback of failed tests.")
     return parser.parse_args()
 
@@ -338,13 +339,13 @@ def main():
     path = args.path
     robot_model = args.robot
     robot_ip = args.ip
-    DEBUG = args.debug
+    DEBUG = args.verbose
 
     robot_frequency = args.frequency
     dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
     dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
-    jnt_accuracy = args.joint_accuracy if args.joint_accuracy <= ACCURACY_MAX else ACCURACY_MAX
-    tcp_accuracy = args.tcp_accuracy if args.tcp_accuracy <= ACCURACY_MAX else ACCURACY_MAX
+    jnt_accuracy = args.joint_tolerance if args.joint_tolerance <= ACCURACY_MAX else ACCURACY_MAX
+    tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= 0.1 else 0.1
 
     path = extract_path(path)
