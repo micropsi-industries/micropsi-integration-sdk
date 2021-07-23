@@ -249,10 +249,12 @@ def extract_path(path):
 
     if path.startswith("./"):
         path = os.getcwd() + path[1:]
+    elif not path.startswith("/"):
+        path = os.path.abspath(path)
 
     from pathlib import Path
-
-    if not Path(path).is_file():
+    robot_implementation = Path(path) 
+    if not robot_implementation.is_file():
         print("FileNotFoundError: Robot implementation not found at path"
               ": {}".format(path))
         exit()
@@ -266,8 +268,8 @@ def parse_args():
     required = parser.add_argument_group("requried arguments")
     optional = parser.add_argument_group("optional arguments")
 
-    required.add_argument("-p", "--path", required=True, metavar='\b',
-                          help="path to the Robot implementation")
+    required.add_argument("path", help="Path to the Robot implementation")
+
     required.add_argument("-r", "--robot", required=True, metavar='\b',
                           help="Robot Model as defined in the implementation")
     optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
@@ -355,14 +357,14 @@ def main():
     assert_wrapper(rob.get_model() is robot_model,
                    "Invalid Robot model loaded")
 
-    print("Robot {} implementation found and loaded".format(rob.get_model()))
+    print("Robot {} implementation loaded".format(rob.get_model()))
     try:
-        print("Attempting to connect to Robot")
+        print("Connecting to Robot{}".format(robot_model))
         assert_wrapper(rob.connect(), "Robot connection")
         THREAD.start()
         while THREAD.state is None and not thread_stopped:
             time.sleep(0.1)
-        print("Connected to Robot {}".format(robot_model))
+        print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
         assert_wrapper(THREAD.state is not None, "Invalid Robot State")
 
