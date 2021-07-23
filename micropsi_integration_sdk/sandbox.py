@@ -23,7 +23,6 @@ DEF_FREQUENCY = 20
 LENGTH = 0.05
 MAX_LENGTH = 0.1
 
-THREAD = None
 last_target = None
 
 
@@ -64,8 +63,8 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
     return ret
 
 
-def move_joints(jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
-                rob_frequency, dist, tcp_accuracy, jnt_accuracy):
+def move_joints(thread, jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
+                dist, tcp_accuracy, jnt_accuracy):
     """
     Moves the robot to target joint positions, by breaking down the delta into
     smaller deltas to sync with the frequency of robot communication.
@@ -79,11 +78,11 @@ def move_joints(jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
         jnt_0 = last_target.copy()
 
     jnt_diff = jnt_f - jnt_0
-    vel = jnt_diff * rob_frequency
+    vel = jnt_diff * thread._frequency
     max_vel_ovrshoot = max(vel - speed_lim_jnt)
     delta_jnt = max(ceil(max_vel_ovrshoot), 1)
 
-    delta = max(dist * rob_frequency/speed_lim_tcp, delta_jnt)
+    delta = max(dist * thread._frequency/speed_lim_tcp, delta_jnt)
     jnt_diff = jnt_f - jnt_0
 
     jnt_delta = jnt_diff/delta
@@ -91,35 +90,33 @@ def move_joints(jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
     t = None
     for i in range(int(ceil(delta))):
         jnt_ = jnt_ + jnt_delta
-        THREAD.rob.send_joint_positions(jnt_, rob_frequency, THREAD.step)
-        j, t = THREAD.manual_step()
-        time.sleep(1/rob_frequency)
+        j, t = thread.send_joint_positions(jnt_)
+        time.sleep(1/thread._frequency)
 
-    while not (check_if_equal(jnt_f, THREAD.state.joint_positions, jnt_accuracy) and
+    while not (check_if_equal(jnt_f, thread.state.joint_positions, jnt_accuracy) and
                check_if_equal(tcp_f, t, tcp_accuracy, pose=True)):
-        THREAD.rob.send_joint_positions(jnt_f, rob_frequency, THREAD.step)
-        j, t = THREAD.manual_step()
+        j, t = thread.send_joint_positions(jnt_f)
 
     last_target = np.array(jnt_f.copy())
 
-    check_if_equal(THREAD.state.joint_positions, jnt_f, jnt_accuracy,
+    check_if_equal(thread.state.joint_positions, jnt_f, jnt_accuracy,
                    assrt=True)
 
 
-def move_robot(action, **kwargs):
+def move_robot(thread, action, **kwargs):
     """
     Computes target joint values from actions and sends it to robot
     """
 
     jnt_acc = kwargs.get("jnt_accuracy")
     tcp_acc = kwargs.get("tcp_accuracy")
-    jnt_0, tcp_0 = THREAD.manual_step()
-    jnt_0_1, tcp_0_1 = rt.get_modified_joints(THREAD.rob, tcp_0,
+    jnt_0, tcp_0 = thread.manual_step()
+    jnt_0_1, tcp_0_1 = rt.get_modified_joints(thread.rob, tcp_0,
                                               jnt_0, trans=action)
 
-    move_joints(jnt_0, jnt_0_1, tcp_0_1, **kwargs)
+    move_joints(thread, jnt_0, jnt_0_1, tcp_0_1, **kwargs)
 
-    jnt_1, tcp_1 = THREAD.manual_step()
+    jnt_1, tcp_1 = thread.manual_step()
 
     check_if_equal(jnt_1, jnt_0_1, jnt_acc, assrt=True)
     check_if_equal(tcp_1, tcp_0_1, tcp_acc, pose=True, assrt=True)
@@ -147,7 +144,6 @@ class RobotCommunication(threading.Thread):
         self.thread_stopped = False
 
     def run(self):
-        #global thread_stopped
         try:
             self.thread_stopped = False
 
@@ -207,6 +203,10 @@ class RobotCommunication(threading.Thread):
         tcp = rt.extract_tcp(self.rob.forward_kinematics(jnt))
         self.step += 1
         return jnt, tcp
+
+    def send_joint_positions(self, jnt):
+        self.rob.send_joint_positions(jnt, self._frequency, self.step)
+        return self.manual_step()
 
     def close(self):
         """
@@ -305,12 +305,12 @@ def parse_args():
 
 
 def main():
-    global THREAD
+    thread = None
     args = parse_args()
+    debug = args.verbose
     path = args.path
     robot_model = args.robot
     robot_ip = args.ip
-    debug = args.verbose
 
     robot_frequency = args.frequency
     dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
@@ -364,7 +364,7 @@ def main():
         if rob is None:
             raise Exception("Failed to load Robot implementation")
 
-        THREAD = RobotCommunication(rob, robot_frequency)
+        thread = RobotCommunication(rob, robot_frequency)
         assert rob.get_model() is robot_model, "Invalid Robot model loaded"
 
         print("Robot {} implementation loaded".format(rob.get_model()))
@@ -375,12 +375,12 @@ def main():
             err_txt = type(e).__name__
             raise ConnectionError("Robot connection failed. " + err_txt)
 
-        THREAD.start()
-        while THREAD.state is None and not THREAD.thread_stopped:
+        thread.start()
+        while thread.state is None and not thread.thread_stopped:
             time.sleep(0.1)
         print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
-        assert THREAD.state is not None, "Invalid Robot State"
+        assert thread.state is not None, "Invalid Robot State"
 
         jnt_cnt = rob.get_joint_count()
         jnt_speed_lmt = rob.get_joint_speed_limits()
@@ -388,10 +388,10 @@ def main():
         has_internal_ft = rob.has_internal_ft_sensor()
 
         if has_internal_ft and guide_with_internal_sensor:
-            assert len(THREAD.state.raw_wrench) == 6, "Invalid FT data"
+            assert len(thread.state.raw_wrench) == 6, "Invalid FT data"
 
         jnt_e = "Invalid joint positions"
-        assert len(THREAD.state.joint_positions) == jnt_cnt, jnt_e
+        assert len(thread.state.joint_positions) == jnt_cnt, jnt_e
         assert len(jnt_pos_lmt) == jnt_cnt, jnt_e
         assert len(jnt_speed_lmt) == jnt_cnt, jnt_e
 
@@ -400,14 +400,13 @@ def main():
         rob.release_control()
         rob.prepare_for_control()
 
-        jnt_0, tcp_0 = THREAD.manual_step()
+        jnt_0, tcp_0 = thread.manual_step()
 
         rob.release_control()
         rob.prepare_for_control()
         rob.take_control()
 
         kwargs = {
-            "rob_frequency": robot_frequency,
             "speed_lim_jnt": jnt_speed_lim,
             "speed_lim_tcp": tcp_speed_lim,
             "jnt_accuracy": jnt_accuracy,
@@ -418,15 +417,15 @@ def main():
 
         # Send move to current position instruction to protect against
         # outdated move instructions in Robot register.
-        move_joints(jnt_0, jnt_0, tcp_0, **kwargs)
-        check_if_equal(jnt_0, THREAD.state.joint_positions, jnt_accuracy,
+        move_joints(thread, jnt_0, jnt_0, tcp_0, **kwargs)
+        check_if_equal(jnt_0, thread.state.joint_positions, jnt_accuracy,
                        assrt=True)
 
         actions = gen_random_actions(dimensions, dist=dist)
 
         for i in range(len(actions)):
             print("Moving to: Position  {}".format(i + 1))
-            j0, jf, tf = move_robot(actions[i], **kwargs)
+            j0, jf, tf = move_robot(thread, actions[i], **kwargs)
             time.sleep(2.1)
 
         check_if_equal(tcp_0, tf, tcp_accuracy, pose=True, assrt=True)
@@ -434,9 +433,9 @@ def main():
 
     except Exception as e:
         e_list = []
-        if THREAD and THREAD.debug_error is not None:
-            e_list.insert(len(e_list), THREAD.debug_error)
-        elif THREAD and THREAD.thread_stopped:
+        if thread and thread.debug_error is not None:
+            e_list.insert(len(e_list), thread.debug_error)
+        elif thread and thread.thread_stopped:
             err = RuntimeError("Robot communication failed")
             e_list.insert(len(e_list),err)
         e_list.insert(len(e_list),e)
@@ -447,11 +446,11 @@ def main():
                 else:
                     s = ""
                 err_txt = type(err).__name__ + ": " + s
-            print (err_txt)
+            print(err_txt)
 
 
         try:
-            THREAD.close()
+            thread.close()
         except:
             pass
 
@@ -460,7 +459,7 @@ def main():
         exit()
 
 
-    THREAD.close()
+    thread.close()
 
 
 if __name__ == '__main__':
