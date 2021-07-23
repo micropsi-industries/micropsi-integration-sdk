@@ -4,6 +4,7 @@ import os
 import time
 import threading
 from math import ceil
+from datetime import datetime
 import numpy as np
 import micropsi_integration_sdk.ri_toolbox as rt
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
@@ -17,7 +18,6 @@ DEFAULT_ACC = 1e-2
 ACCURACY_MAX = 0.1
 
 MAX_LINEAR_MOVEMENT = 0.1
-MAX_FREQUENCY = 50
 DEF_FREQUENCY = 20
 
 LENGTH = 0.05
@@ -173,16 +173,45 @@ class RobotCommunication(threading.Thread):
         self.step = 0
         threading.Thread.__init__(self)
 
+        self.overshoot_flag = False
+        self.overshoot_time = None
+
     def run(self):
         global thread_stopped
         try:
             thread_stopped = False
 
             while self.running:
+                start = datetime.now()
+
                 self.state = self.get_state()
+
+                elapsed = (datetime.now() - start).microseconds/1e6
+                overstep = (1/self._frequency) - elapsed
+
+                if overstep > 0:
+                    overshoot_flag = False
+                    time.sleep(overstep)
+                else:
+                    overshoot_flag = True
+                self.overshoot(overshoot_flag)
+
         except Exception as e:
             thread_stopped = True
             raise_wrapper(e)
+
+    def overshoot(self, overshoot_flag):
+        if not (overshoot_flag or self.overshoot_flag):
+            return
+        if not self.overshoot_flag:
+            self.overshoot_flag = True
+        if self.overshoot_time is None:
+            self.overshoot_time = datetime.now()
+        elapsed = (datetime.now() - self.overshoot_time).microseconds/1e6
+        if elapsed > 0.5:
+            print("Robot Frequency too high")
+            self.overshoot_flag = False
+            self.overshoot_time = None
 
     def get_state(self):
         """
@@ -199,7 +228,6 @@ class RobotCommunication(threading.Thread):
                                            " robot connection")
 
                 self.rob.clear_cached_hardware_state()
-                time.sleep(1/self._frequency)
                 self.rob.connect()
         return state
 
@@ -274,8 +302,8 @@ def parse_args():
     optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
                           metavar='\b', type=float,
                           help="Frequency of the Robot in Hz. Default: {}Hz."
-                          " Maximum Frequency {}"
-                          "".format(DEF_FREQUENCY, MAX_FREQUENCY))
+                          "".format(DEF_FREQUENCY))
+
     optional.add_argument("-sp", "--tcp_speed", default=DEFAULT_TCP_SPEED,
                           type=float, metavar='\b', help=" TCP "
                           "speed in meter per second Default: {}, "
@@ -312,7 +340,7 @@ def main():
     robot_ip = args.ip
     DEBUG = args.debug
 
-    robot_frequency = args.frequency if args.frequency <= MAX_FREQUENCY else MAX_FREQUENCY
+    robot_frequency = args.frequency
     dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
     dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
     jnt_accuracy = args.joint_accuracy if args.joint_accuracy <= ACCURACY_MAX else ACCURACY_MAX
