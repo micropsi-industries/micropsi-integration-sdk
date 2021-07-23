@@ -12,7 +12,7 @@ from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCo
 
 DEFAULT_IP = "192.168.100.100"
 MAX_TCP_SPEED = 0.1
-DEFAULT_TCP_SPEED = 0.1
+DEFAULT_TCP_SPEED = 0.05
 
 DEFAULT_ACC = 1e-2
 ACCURACY_MAX = 0.1
@@ -346,7 +346,7 @@ def main():
     dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
     jnt_accuracy = args.joint_tolerance if args.joint_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
-    tcp_speed_lim = args.tcp_speed if args.tcp_speed <= 0.1 else 0.1
+    tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
 
     path = extract_path(path)
 
