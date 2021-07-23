@@ -259,7 +259,7 @@ def gen_random_actions(dim=3, dist=0.1):
     """
     import random
     actions = []
-    ax = [2, 0, 1]
+    ax = [0, 1, 2]
     for i in range(dim):
         action = [0, 0, 0]
         action[ax[i]] = dist
@@ -308,9 +308,9 @@ def parse_args():
                           type=float, metavar='\b', help=" TCP "
                           "speed in meter per second Default: {}, "
                           "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
-    optional.add_argument("-d", "--dimension", default="3", type=int,
+    optional.add_argument("-d", "--dimension", default="1", type=int,
                           metavar='\b', help="Number of Axis to move "
-                          "the robot in. Default: 3")
+                          "the robot in. Default: 1")
 
     optional.add_argument("-l", "--length", default=LENGTH, type=float,
                           metavar='\b', help="Length of movement in meters, "
