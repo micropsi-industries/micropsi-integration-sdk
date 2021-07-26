@@ -1,4 +1,4 @@
-from math import sin, cos, atan2
+from math import sin, cos, atan2, sqrt
 import numpy as np
 
 
@@ -128,3 +128,8 @@ def extract_tcp(tcp_0):
     t[:3] = tcp_0[0:3, 3]
     t[3:] = get_orientation_as_fixed_XYZ(tcp_0)
     return t
+
+def dist(p1,p2):
+    return sqrt( ((p1[0]-p2[0])**2 ) + 
+                 (  (p1[1]-p2[1])**2) +
+                 (  (p1[2]-p2[2])**2) )

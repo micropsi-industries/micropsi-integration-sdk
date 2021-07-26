@@ -54,43 +54,49 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
         return False
 
 
-
-
-def move_joints(thread, jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
-                dist, tcp_accuracy, jnt_accuracy):
+def move_joints(thread, jnt_0, jnt_f, tcp_0, tcp_f, speed_lim_jnt,
+                speed_lim_tcp, tcp_accuracy, jnt_accuracy):
     """
     Moves the robot to target joint positions, by breaking down the delta into
     smaller deltas to sync with the frequency of robot communication.
 
     """
-    global last_target
-
     assert jnt_f is not None
     assert jnt_0 is not None
-    if last_target is not None:
-        jnt_0 = last_target.copy()
+
+    dist = rt.dist(tcp_0[:3], tcp_f[:3])
+
+    if thread.last_target is not None:
+        jnt_0 = thread.last_target.copy()
 
     jnt_diff = jnt_f - jnt_0
+
     vel = jnt_diff * thread._frequency
     max_vel_ovrshoot = max(vel - speed_lim_jnt)
     delta_jnt = max(ceil(max_vel_ovrshoot), 1)
 
     delta = max(dist * thread._frequency/speed_lim_tcp, delta_jnt)
-    jnt_diff = jnt_f - jnt_0
 
     jnt_delta = jnt_diff/delta
+
     jnt_ = jnt_0.copy()
-    t = None
-    for i in range(int(ceil(delta))):
+    for i in range(max(int(ceil(delta)), 1)):
+        start = time.time()
         jnt_ = jnt_ + jnt_delta
-        j, t = thread.send_joint_positions(jnt_)
+        jnt_curr, tcp_curr = thread.send_joint_positions(jnt_)
+        elapsed = (time.time() - start)
+        overstep = (1/thread._frequency) - elapsed
+        time.sleep(overstep)
+
+    start = time.time()
+    while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
+               check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
+               ) and not thread.thread_stopped:
+        jnt_curr, tcp_curr = thread.manual_step()
+        jnt_curr, tcp_curr = thread.send_joint_positions(jnt_)
         time.sleep(1/thread._frequency)
-
-    while not (check_if_equal(jnt_f, thread.state.joint_positions, jnt_accuracy) and
-               check_if_equal(tcp_f, t, tcp_accuracy, pose=True)):
-        j, t = thread.send_joint_positions(jnt_f)
-
-    last_target = np.array(jnt_f.copy())
+        if time.time() - start > TIMEOUT:
+            break
 
     check_if_equal(thread.state.joint_positions, jnt_f, jnt_accuracy,
                    assrt=True)
@@ -107,7 +113,7 @@ def move_robot(thread, action, **kwargs):
     jnt_0_1, tcp_0_1 = rt.get_modified_joints(thread.rob, tcp_0,
                                               jnt_0, trans=action)
 
-    move_joints(thread, jnt_0, jnt_0_1, tcp_0_1, **kwargs)
+    move_joints(thread, jnt_0, jnt_0_1, tcp_0, tcp_0_1, **kwargs)
 
     jnt_1, tcp_1 = thread.manual_step()
 
@@ -128,50 +134,56 @@ class RobotCommunication(threading.Thread):
         self.state = None
         self.running = True
         self.step = 0
-        threading.Thread.__init__(self)
+        self.last_target = None
 
-        self.overshoot_flag = False
-        self.overshoot_time = None
+        threading.Thread.__init__(self)
 
         self.debug_error = None
         self.thread_stopped = False
+
+        self.print_list = []
+        self.timer = None
 
     def run(self):
         try:
             self.thread_stopped = False
 
             while self.running:
-                start = datetime.now()
+                start = time.time()
 
                 self.state = self.get_state()
 
-                elapsed = (datetime.now() - start).microseconds/1e6
+                elapsed = (time.time() - start)
                 overstep = (1/self._frequency) - elapsed
 
                 if overstep > 0:
-                    overshoot_flag = False
                     time.sleep(overstep)
                 else:
-                    overshoot_flag = True
-                self.overshoot(overshoot_flag)
+                    self.add_print_str("Robot Frequency too high")
+
+                self.print_with_interval()
 
         except Exception as e:
+            self.running = False
             self.thread_stopped = True
             self.debug_error = e
-            #raise 
+            raise
 
-    def overshoot(self, overshoot_flag):
-        if not (overshoot_flag or self.overshoot_flag):
+    def add_print_str(self, txt):
+        if txt in self.print_list:
             return
-        if not self.overshoot_flag:
-            self.overshoot_flag = True
-        if self.overshoot_time is None:
-            self.overshoot_time = datetime.now()
-        elapsed = (datetime.now() - self.overshoot_time).microseconds/1e6
-        if elapsed > 0.5:
-            print("Robot Frequency too high")
-            self.overshoot_flag = False
-            self.overshoot_time = None
+        self.print_list.insert(len(self.print_list), txt)
+
+    def print_with_interval(self):
+        if self.timer is None:
+            self.timer = time.time()
+
+        elapsed = (time.time() - self.timer)
+        if elapsed > 2:
+            for i in self.print_list:
+                print(i)
+            self.timer = time.time()
+            self.print_list = []
 
     def get_state(self):
         """
@@ -199,6 +211,7 @@ class RobotCommunication(threading.Thread):
 
     def send_joint_positions(self, jnt):
         self.rob.send_joint_positions(jnt, self._frequency, self.step)
+        self.last_target = np.array(jnt)
         return self.manual_step()
 
     def close(self):
@@ -404,7 +417,6 @@ def main():
             "speed_lim_tcp": tcp_speed_lim,
             "jnt_accuracy": jnt_accuracy,
             "tcp_accuracy": tcp_accuracy,
-            "dist": dist
         }
         print("Moving in {} axes, with distance {}".format(dimensions, dist))
 
