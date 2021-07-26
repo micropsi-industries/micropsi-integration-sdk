@@ -31,36 +31,29 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
     Checks if two incomming poses are equivalent (delta < E).
     For pose only the linear component of position is verified
     """
-    ret = True
-    arr1 = arr_1.copy()
-    arr2 = arr_2.copy()
-
-    p = "TCP" if pose else "Joint"
-    assert len(arr1) == len(arr2), "Invalid {} pose".format(p)
-
     if pose:
-        arr1[3:6] = [0., 0., 0]
-        arr2[3:6] = [0., 0., 0]
+        input_data = "TCP"
+        arr_length = 3
+    else:
+        input_data = "Joint"
+        arr_length = 6
 
-    for i in range(len(arr1)):
-        delta = arr1[i] - arr2[i]
-        if not abs(delta) < E:
-            ret = False
-            break
-    if assrt:
-        if pose:
-            e_txt1 = "Target TCP pose not achieved."
-            e_txt2 = " Expected: Pose {},".format(arr_1[:3])
-            e_txt3 = " Recieved: Pose {}.".format(arr_2[:3])
+    assert len(arr_1) == len(arr_2), "Invalid {} pose".format(input_data)
 
-        else:
-            e_txt1 = "Target Joint pose not achieved."
-            e_txt2 = " Expected: Pose {},".format(arr_1[:3])
-            e_txt3 = " Recieved: Pose {}.".format(arr_2[:3])
-        e_txt = e_txt1 + e_txt2 + e_txt3
-        assert ret, e_txt
+    try:
+        assert np.all(np.abs(arr_1[:arr_length]-arr_2[:arr_length]) < E)
+        return True
 
-    return ret
+    except AssertionError as e:
+        e.args += ("""Target {} pose not achieved.
+        Expected: Pose {},
+        Recieved: Pose {}.
+        """.format(input_data, arr_1[:arr_length], arr_2[:arr_length]),)
+        if assrt:
+            raise e
+        return False
+
+
 
 
 def move_joints(thread, jnt_0, jnt_f, tcp_f, speed_lim_jnt, speed_lim_tcp,
