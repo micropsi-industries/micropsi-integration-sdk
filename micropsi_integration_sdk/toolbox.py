@@ -133,3 +133,43 @@ def dist(p1,p2):
     return sqrt( ((p1[0]-p2[0])**2 ) + 
                  (  (p1[1]-p2[1])**2) +
                  (  (p1[2]-p2[2])**2) )
+
+
+def gen_random_actions(dim, dist):
+    """
+    Generate action sets in random order.
+    Args:
+        dim: Number of axes to move in.
+        dist: Length of action in m
+    """
+    import random
+    actions = []
+    ax = [0, 1, 2]
+    for i in range(dim):
+        action = [0, 0, 0]
+        action[ax[i]] = dist
+        actions.insert(len(actions), action.copy())
+        action[ax[i]] = -dist
+        actions.insert(len(actions), action)
+    random.shuffle(actions)
+    return actions
+
+
+def extract_path(path):
+    """
+    Extract path from string
+    """
+    import os
+
+    if path.startswith("./"):
+        path = os.getcwd() + path[1:]
+    elif not path.startswith("/"):
+        path = os.path.abspath(path)
+
+    from pathlib import Path
+    robot_implementation = Path(path)
+    if not robot_implementation.is_file():
+        print("FileNotFoundError: Robot implementation not found at path"
+              ": {}".format(path))
+        exit()
+    return os.path.expanduser(path)

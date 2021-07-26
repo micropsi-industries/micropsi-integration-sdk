@@ -1,12 +1,10 @@
 from argparse import ArgumentParser
 
-import os
 import time
 import threading
 from math import ceil
-from datetime import datetime
 import numpy as np
-import micropsi_integration_sdk.ri_toolbox as rt
+import micropsi_integration_sdk.toolbox as tb
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 
 
@@ -20,10 +18,12 @@ ACCURACY_MAX = 0.1
 MAX_LINEAR_MOVEMENT = 0.1
 DEF_FREQUENCY = 20
 
-LENGTH = 0.05
+DEF_LENGTH = 0.05
 MAX_LENGTH = 0.1
 
-last_target = None
+DEF_DIMENSION = 1
+
+TIMEOUT = 2
 
 
 def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
@@ -54,75 +54,6 @@ def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
         return False
 
 
-def move_joints(thread, jnt_0, jnt_f, tcp_0, tcp_f, speed_lim_jnt,
-                speed_lim_tcp, tcp_accuracy, jnt_accuracy):
-    """
-    Moves the robot to target joint positions, by breaking down the delta into
-    smaller deltas to sync with the frequency of robot communication.
-
-    """
-    assert jnt_f is not None
-    assert jnt_0 is not None
-
-    dist = rt.dist(tcp_0[:3], tcp_f[:3])
-
-    if thread.last_target is not None:
-        jnt_0 = thread.last_target.copy()
-
-    jnt_diff = jnt_f - jnt_0
-
-    vel = jnt_diff * thread._frequency
-    max_vel_ovrshoot = max(vel - speed_lim_jnt)
-    delta_jnt = max(ceil(max_vel_ovrshoot), 1)
-
-    delta = max(dist * thread._frequency/speed_lim_tcp, delta_jnt)
-
-    jnt_delta = jnt_diff/delta
-
-    jnt_ = jnt_0.copy()
-    for i in range(max(int(ceil(delta)), 1)):
-        start = time.time()
-        jnt_ = jnt_ + jnt_delta
-        jnt_curr, tcp_curr = thread.send_joint_positions(jnt_)
-        elapsed = (time.time() - start)
-        overstep = (1/thread._frequency) - elapsed
-        time.sleep(overstep)
-
-    start = time.time()
-    while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
-               check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
-               ) and not thread.thread_stopped:
-        jnt_curr, tcp_curr = thread.manual_step()
-        jnt_curr, tcp_curr = thread.send_joint_positions(jnt_)
-        time.sleep(1/thread._frequency)
-        if time.time() - start > TIMEOUT:
-            break
-
-    check_if_equal(thread.state.joint_positions, jnt_f, jnt_accuracy,
-                   assrt=True)
-
-
-def move_robot(thread, action, **kwargs):
-    """
-    Computes target joint values from actions and sends it to robot
-    """
-
-    jnt_acc = kwargs.get("jnt_accuracy")
-    tcp_acc = kwargs.get("tcp_accuracy")
-    jnt_0, tcp_0 = thread.manual_step()
-    jnt_0_1, tcp_0_1 = rt.get_modified_joints(thread.rob, tcp_0,
-                                              jnt_0, trans=action)
-
-    move_joints(thread, jnt_0, jnt_0_1, tcp_0, tcp_0_1, **kwargs)
-
-    jnt_1, tcp_1 = thread.manual_step()
-
-    check_if_equal(jnt_1, jnt_0_1, jnt_acc, assrt=True)
-    check_if_equal(tcp_1, tcp_0_1, tcp_acc, pose=True, assrt=True)
-
-    return jnt_0, jnt_0_1, tcp_1
-
-
 class RobotCommunication(threading.Thread):
     """
     Connection thread to continuously fetch the robot state
@@ -130,7 +61,7 @@ class RobotCommunication(threading.Thread):
     def __init__(self, robot_interface, frequency):
         assert robot_interface is not None, "Invalid robot interface"
         self.rob = robot_interface
-        self._frequency = frequency
+        self.frequency = frequency
         self.state = None
         self.running = True
         self.step = 0
@@ -154,7 +85,7 @@ class RobotCommunication(threading.Thread):
                 self.state = self.get_state()
 
                 elapsed = (time.time() - start)
-                overstep = (1/self._frequency) - elapsed
+                overstep = (1/self.frequency) - elapsed
 
                 if overstep > 0:
                     time.sleep(overstep)
@@ -185,6 +116,73 @@ class RobotCommunication(threading.Thread):
             self.timer = time.time()
             self.print_list = []
 
+    def move_joints(self, jnt_0, jnt_f, tcp_0, tcp_f, speed_lim_jnt,
+                    speed_lim_tcp, tcp_accuracy, jnt_accuracy):
+        """
+        Moves the robot to target joint positions, by breaking down the delta
+        into smaller deltas to sync with the frequency of robot communication.
+
+        """
+        assert jnt_f is not None
+        assert jnt_0 is not None
+
+        dist = tb.dist(tcp_0[:3], tcp_f[:3])
+
+        if self.last_target is not None:
+            jnt_0 = self.last_target.copy()
+
+        jnt_diff = jnt_f - jnt_0
+
+        vel = jnt_diff * self.frequency
+        max_vel_ovrshoot = max(vel - speed_lim_jnt)
+        delta_jnt = max(ceil(max_vel_ovrshoot), 1)
+
+        delta = max(dist * self.frequency/speed_lim_tcp, delta_jnt)
+
+        jnt_delta = jnt_diff/delta
+
+        jnt_ = jnt_0.copy()
+        for i in range(max(int(ceil(delta)), 1)):
+            start = time.time()
+            jnt_ = jnt_ + jnt_delta
+            jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
+            elapsed = (time.time() - start)
+            overstep = (1/self.frequency) - elapsed
+            time.sleep(overstep)
+
+        start = time.time()
+        while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
+                   check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
+                   ) and not self.thread_stopped:
+            jnt_curr, tcp_curr = self.manual_step()
+            jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
+            time.sleep(1/self.frequency)
+            if time.time() - start > TIMEOUT:
+                break
+
+        check_if_equal(self.state.joint_positions, jnt_f, jnt_accuracy,
+                       assrt=True)
+
+    def move_robot(self, action, **kwargs):
+        """
+        Computes target joint values from actions and sends it to robot
+        """
+
+        jnt_acc = kwargs.get("jnt_accuracy")
+        tcp_acc = kwargs.get("tcp_accuracy")
+        jnt_0, tcp_0 = self.manual_step()
+        jnt_0_1, tcp_0_1 = tb.get_modified_joints(self.rob, tcp_0,
+                                                  jnt_0, trans=action)
+
+        self.move_joints(jnt_0, jnt_0_1, tcp_0, tcp_0_1, **kwargs)
+
+        jnt_1, tcp_1 = self.manual_step()
+
+        check_if_equal(jnt_1, jnt_0_1, jnt_acc, assrt=True)
+        check_if_equal(tcp_1, tcp_0_1, tcp_acc, pose=True, assrt=True)
+
+        return jnt_0, jnt_0_1, tcp_1
+
     def get_state(self):
         """
         Connect to the robot and read the state.
@@ -205,12 +203,12 @@ class RobotCommunication(threading.Thread):
 
     def manual_step(self):
         jnt = self.state.joint_positions
-        tcp = rt.extract_tcp(self.rob.forward_kinematics(jnt))
+        tcp = tb.extract_tcp(self.rob.forward_kinematics(jnt))
         self.step += 1
         return jnt, tcp
 
     def send_joint_positions(self, jnt):
-        self.rob.send_joint_positions(jnt, self._frequency, self.step)
+        self.rob.send_joint_positions(jnt, self.frequency, self.step)
         self.last_target = np.array(jnt)
         return self.manual_step()
 
@@ -227,46 +225,6 @@ class RobotCommunication(threading.Thread):
         print("{} Disconnected".format(self.rob.get_model()))
 
 
-def gen_random_actions(dim=3, dist=0.1):
-    """
-    Generate action sets in random order.
-    Args:
-        dim: Number of axes to move in.
-        dist: Length of action in m
-    """
-    import random
-    actions = []
-    ax = [0, 1, 2]
-    for i in range(dim):
-        action = [0, 0, 0]
-        action[ax[i]] = dist
-        actions.insert(len(actions), action.copy())
-        action[ax[i]] = -dist
-        actions.insert(len(actions), action)
-    random.shuffle(actions)
-    return actions
-
-
-def extract_path(path):
-    """
-    Extract path from string
-    """
-
-    if path.startswith("./"):
-        path = os.getcwd() + path[1:]
-    elif not path.startswith("/"):
-        path = os.path.abspath(path)
-
-    from pathlib import Path
-    robot_implementation = Path(path)
-    if not robot_implementation.is_file():
-        print("FileNotFoundError: Robot implementation not found at path"
-              ": {}".format(path))
-        exit()
-
-    return path
-
-
 def parse_args():
     parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool")
     parser._action_groups.pop()
@@ -279,20 +237,20 @@ def parse_args():
                           " robot model as defined in the implementation")
     optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
                           metavar='\b', type=float,
-                          help="Frequency of the Robot in Hz. Default: {}Hz."
+                          help="Frequency of the Robot. Default: {}Hz."
                           "".format(DEF_FREQUENCY))
 
     optional.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED,
                           type=float, metavar='\b', help=" TCP "
                           "speed in meter per second Default: {}, "
                           "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
-    optional.add_argument("-d", "--dimension", default="1", type=int,
+    optional.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
                           metavar='\b', help="Number of Axis to move "
-                          "the robot in. Default: 1")
+                          "the robot in. Default: {}".format(DEF_DIMENSION))
 
-    optional.add_argument("-l", "--length", default=LENGTH, type=float,
-                          metavar='\b', help="Length of movement, Default:"
-                          "{} meters , Max: {}m".format(LENGTH, MAX_LENGTH))
+    optional.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
+                          metavar='\b', help="Length of movement, Default:{}"
+                          " meters, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
 
     optional.add_argument("-ip", "--ip", default=DEFAULT_IP, metavar='\b',
                           help="IP address of the robot. Default:"
@@ -300,11 +258,13 @@ def parse_args():
 
     optional.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC,
                           type=float, metavar='\b', help="Accuracy of the "
-                          "robot joints. Default: {} radians".format(DEFAULT_ACC))
+                          "robot joints. Default: {} radians"
+                          "".format(DEFAULT_ACC))
+
     optional.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC,
                           type=float, metavar='\b',
                           help="Accuracy of the TCP position achieved by "
-                          "robot. Default: {} meters".format(DEFAULT_ACC)),
+                          "robot. Default: {} meters".format(DEFAULT_ACC))
     optional.add_argument("-v", "--verbose", action="store_true",
                           help="(Flag) Enable traceback of failed tests.")
     return parser.parse_args()
@@ -325,10 +285,9 @@ def main():
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
 
-    path = extract_path(path)
+    robot_path = tb.extract_path(path)
 
     collection = RobotInterfaceCollection()
-    robot_path = os.path.expanduser(path)
     collection.load_interface_file(robot_path)
     supported_robots = sorted(collection.list_robots())
 
@@ -339,12 +298,14 @@ def main():
         if robot_model is None:
             if len(supported_robots) > 1:
                 print("Multiple robot implmentations found.")
-                print("Please enter the robot Model to use: {}".format(supported_robots))
+                print("Please enter the robot Model to use: "
+                      "{}".format(supported_robots))
                 robot_model = input("Model: ")
             else:
-                print("Robot implementation found: {}".format(supported_robots[0]))
-                print("Loading {} in 5 seconds..".format(supported_robots[0]))
-                time.sleep(5)
+                print("Robot implementation found: "
+                      "{}".format(supported_robots[0]))
+                print("Loading {} in 2 seconds..".format(supported_robots[0]))
+                time.sleep(2)
                 robot_model = supported_robots[0]
 
         try:
@@ -360,15 +321,13 @@ def main():
             "ip_address": robot_ip,
         }
 
-        guide_with_internal_sensor = False
+        guide_with_internal_ft = False
         if robot_interface.has_internal_ft_sensor():
-            guide_with_internal_sensor = True
-            robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_sensor
+            guide_with_internal_ft = True
+            robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_ft
         rob = robot_interface(**robot_kwargs)
 
-        assert rob is not None, "Robot"
-        if rob is None:
-            raise Exception("Failed to load Robot implementation")
+        assert rob is not None, "Failed to load Robot implementation"
 
         thread = RobotCommunication(rob, robot_frequency)
         assert rob.get_model() is robot_model, "Invalid Robot model loaded"
@@ -393,7 +352,7 @@ def main():
         jnt_pos_lmt = rob.get_joint_position_limits()
         has_internal_ft = rob.has_internal_ft_sensor()
 
-        if has_internal_ft and guide_with_internal_sensor:
+        if has_internal_ft and guide_with_internal_ft:
             assert len(thread.state.raw_wrench) == 6, "Invalid FT data"
 
         jnt_e = "Invalid joint positions"
@@ -422,15 +381,15 @@ def main():
 
         # Send move to current position instruction to protect against
         # outdated move instructions in Robot register.
-        move_joints(thread, jnt_0, jnt_0, tcp_0, **kwargs)
+        thread.move_joints(jnt_0, jnt_0, tcp_0, tcp_0, **kwargs)
         check_if_equal(jnt_0, thread.state.joint_positions, jnt_accuracy,
                        assrt=True)
 
-        actions = gen_random_actions(dimensions, dist=dist)
+        actions = tb.gen_random_actions(dimensions, dist=dist)
 
         for i in range(len(actions)):
             print("Moving to: Position  {}".format(i + 1))
-            j0, jf, tf = move_robot(thread, actions[i], **kwargs)
+            j0, jf, tf = thread.move_robot(actions[i], **kwargs)
             time.sleep(2.1)
 
         check_if_equal(tcp_0, tf, tcp_accuracy, pose=True, assrt=True)
@@ -438,13 +397,16 @@ def main():
 
     except Exception as e:
         e_list = []
+
         if thread and thread.debug_error is not None:
             e_list.insert(len(e_list), thread.debug_error)
         elif thread and thread.thread_stopped:
             err = RuntimeError("Robot communication failed")
-            e_list.insert(len(e_list),err)
-        e_list.insert(len(e_list),e)
-        for  err in e_list:
+            e_list.insert(len(e_list), err)
+
+        e_list.insert(len(e_list), e)
+
+        for err in e_list:
             if err is not None:
                 if len(err.args) > 0:
                     s = err.args[0]
@@ -452,7 +414,6 @@ def main():
                     s = ""
                 err_txt = type(err).__name__ + ": " + s
             print(err_txt)
-
 
         try:
             thread.close()
@@ -462,7 +423,6 @@ def main():
         if debug:
             raise
         exit()
-
 
     thread.close()
 
