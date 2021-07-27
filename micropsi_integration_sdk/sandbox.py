@@ -59,7 +59,6 @@ class RobotCommunication(threading.Thread):
     Connection thread to continuously fetch the robot state
     """
     def __init__(self, robot_interface, frequency):
-        assert robot_interface is not None, "Invalid robot interface"
         self.rob = robot_interface
         self.frequency = frequency
         self.state = None
@@ -78,7 +77,6 @@ class RobotCommunication(threading.Thread):
 
     def run(self):
         try:
-            self.thread_stopped = False
 
             while self.running:
                 start = time.time()
@@ -101,9 +99,7 @@ class RobotCommunication(threading.Thread):
 
         except Exception as e:
             self.running = False
-            self.thread_stopped = True
-            self.debug_error = e
-            raise
+            self.thread_error = e
 
     def add_log(self, txt):
         if txt in self.logs:
@@ -149,7 +145,7 @@ class RobotCommunication(threading.Thread):
         start = time.time()
         while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
                    check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
-                   ) and not self.thread_stopped:
+                   ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             if time.time() - start > TIMEOUT:
                 break
@@ -216,7 +212,8 @@ class RobotCommunication(threading.Thread):
         Shutdowns Thread and close the connection to the robot
         """
         self.running = False
-        self.join()
+        if self.is_alive():
+            self.join()
 
         # Release Control
         self.rob.release_control()
@@ -289,6 +286,7 @@ def main():
     collection = RobotInterfaceCollection()
     collection.load_interface_file(robot_path)
     supported_robots = sorted(collection.list_robots())
+    e_list = []
 
     try:
         if len(supported_robots) == 0:
@@ -340,7 +338,7 @@ def main():
             raise ConnectionError("Robot connection failed. " + err_txt)
 
         thread.start()
-        while thread.state is None and not thread.thread_stopped:
+        while thread.state is None and thread.running:
             time.sleep(0.1)
         print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
@@ -395,35 +393,30 @@ def main():
         check_if_equal(jnt_0, jf, jnt_accuracy, assrt=True)
 
     except Exception as e:
-        e_list = []
 
-        if thread and thread.debug_error is not None:
-            e_list.insert(len(e_list), thread.debug_error)
-        elif thread and thread.thread_stopped:
-            err = RuntimeError("Robot communication failed")
-            e_list.insert(len(e_list), err)
-
-        e_list.insert(len(e_list), e)
-
-        for err in e_list:
-            if err is not None:
-                if len(err.args) > 0:
-                    s = err.args[0]
-                else:
-                    s = ""
-                err_txt = type(err).__name__ + ": " + s
-            print(err_txt)
-
-        try:
-            thread.close()
-        except:
-            pass
+        if thread and not thread.running:
+            if debug:
+                raise thread.thread_error
+            if thread.thread_error is None:
+                e_list.append(RuntimeError("Robot communication failed"))
+            else:
+                e_list.append(thread.thread_error)
+        e_list.append(e)
 
         if debug:
             raise
-        exit()
+        e_list.append(e)
+        for err in e_list:
+            s = err.args[0] if err.args else ""
+            err_txt = type(err).__name__ + ": " + s
+            print(err_txt)
 
-    thread.close()
+    finally:
+        try:
+            thread.close()
+        except:
+            if len(e_list) == 0:
+                raise
 
 
 if __name__ == '__main__':
