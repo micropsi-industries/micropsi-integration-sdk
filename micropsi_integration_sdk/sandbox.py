@@ -23,7 +23,7 @@ MAX_LENGTH = 0.1
 
 DEF_DIMENSION = 1
 
-TIMEOUT = 2
+TIMEOUT = 5
 
 
 def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
@@ -66,6 +66,7 @@ class RobotCommunication(threading.Thread):
         self.running = True
         self.step = 0
         self.last_target = None
+        self.last_target_tcp = None
 
         threading.Thread.__init__(self)
 
@@ -126,9 +127,6 @@ class RobotCommunication(threading.Thread):
 
         dist = tb.dist(tcp_0[:3], tcp_f[:3])
 
-        if self.last_target is not None:
-            jnt_0 = self.last_target.copy()
-
         jnt_diff = jnt_f - jnt_0
 
         vel = jnt_diff * self.frequency
@@ -146,20 +144,21 @@ class RobotCommunication(threading.Thread):
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             elapsed = (time.time() - start)
             overstep = (1/self.frequency) - elapsed
-            time.sleep(overstep)
+            time.sleep(max(overstep, 0))
 
         start = time.time()
         while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
                    check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
                    ) and not self.thread_stopped:
-            jnt_curr, tcp_curr = self.manual_step()
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
-            time.sleep(1/self.frequency)
             if time.time() - start > TIMEOUT:
                 break
 
         check_if_equal(self.state.joint_positions, jnt_f, jnt_accuracy,
                        assrt=True)
+
+        self.last_target = np.array(jnt_f)
+        self.last_target_tcp = np.array(tcp_f)
 
     def move_robot(self, action, **kwargs):
         """
@@ -168,7 +167,11 @@ class RobotCommunication(threading.Thread):
 
         jnt_acc = kwargs.get("jnt_accuracy")
         tcp_acc = kwargs.get("tcp_accuracy")
-        jnt_0, tcp_0 = self.manual_step()
+        if self.last_target is None:
+            jnt_0, tcp_0 = self.manual_step()
+        else:
+            jnt_0 = self.last_target
+            tcp_0 = self.last_target_tcp
         jnt_0_1, tcp_0_1 = tb.get_modified_joints(self.rob, tcp_0,
                                                   jnt_0, trans=action)
 
@@ -200,14 +203,12 @@ class RobotCommunication(threading.Thread):
         return state
 
     def manual_step(self):
-        jnt = self.state.joint_positions
-        tcp = tb.extract_tcp(self.rob.forward_kinematics(jnt))
         self.step += 1
-        return jnt, tcp
+        tf = self.rob.forward_kinematics(self.state.joint_positions)
+        return self.state.joint_positions, tb.extract_tcp(tf)
 
     def send_joint_positions(self, jnt):
         self.rob.send_joint_positions(jnt, self.frequency, self.step)
-        self.last_target = np.array(jnt)
         return self.manual_step()
 
     def close(self):
