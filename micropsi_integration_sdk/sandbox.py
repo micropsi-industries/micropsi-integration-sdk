@@ -69,11 +69,11 @@ class RobotCommunication(threading.Thread):
 
         threading.Thread.__init__(self)
 
-        self.debug_error = None
-        self.thread_stopped = False
+        self.thread_error = None
 
-        self.print_list = []
-        self.timer = None
+        self.logs = []
+
+        self.last_flush = 0
 
     def run(self):
         try:
@@ -90,9 +90,13 @@ class RobotCommunication(threading.Thread):
                 if overstep > 0:
                     time.sleep(overstep)
                 else:
-                    self.add_print_str("Robot Frequency too high")
+                    self.add_log("WARNING: Robot Frequency too high")
 
-                self.print_with_interval()
+                secs_since_last_flush = time.time() - self.last_flush
+
+                if secs_since_last_flush > 2:
+                    self.flush_logs()
+                    self.last_flush = time.time()
 
         except Exception as e:
             self.running = False
@@ -100,21 +104,15 @@ class RobotCommunication(threading.Thread):
             self.debug_error = e
             raise
 
-    def add_print_str(self, txt):
-        if txt in self.print_list:
+    def add_log(self, txt):
+        if txt in self.logs:
             return
-        self.print_list.insert(len(self.print_list), txt)
+        self.logs.append(txt)
 
-    def print_with_interval(self):
-        if self.timer is None:
-            self.timer = time.time()
-
-        elapsed = (time.time() - self.timer)
-        if elapsed > 2:
-            for i in self.print_list:
-                print(i)
-            self.timer = time.time()
-            self.print_list = []
+    def flush_logs(self):
+        for i in self.logs:
+            print(i)
+        self.logs = []
 
     def move_joints(self, jnt_0, jnt_f, tcp_0, tcp_f, speed_lim_jnt,
                     speed_lim_tcp, tcp_accuracy, jnt_accuracy):
