@@ -143,7 +143,7 @@ class RobotCommunication(threading.Thread):
             time.sleep(max(overstep, 0))
 
         start = time.time()
-        while not (check_if_equal(jnt_f, jnt_curr, jnt_accuracy) and
+        while not (check_if_equal(jnt_, jnt_curr, jnt_accuracy) and
                    check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
                    ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
@@ -288,55 +288,62 @@ def main():
     supported_robots = sorted(collection.list_robots())
     e_list = []
 
+    if len(supported_robots) == 0:
+        print("No Robot Implementation found.")
+        exit()
+
+    if robot_model is None:
+        if len(supported_robots) > 1:
+            print("Multiple robot implmentations found.")
+            print("Please enter the robot Model to use: "
+                  "{}".format(supported_robots))
+            robot_model = input("Model: ")
+        else:
+            print("Robot implementation found: "
+                  "{}".format(supported_robots[0]))
+            print("Loading {} in 2 seconds..".format(supported_robots[0]))
+            time.sleep(2)
+            robot_model = supported_robots[0]
+
     try:
-        if len(supported_robots) == 0:
-            raise NotImplementedError("No Robot Implementation found.")
+        supported_robots.index(robot_model)
+    except ValueError as e:
+        print("NotImplementedError: Unknown/unsupported Robot model")
+        exit()
 
-        if robot_model is None:
-            if len(supported_robots) > 1:
-                print("Multiple robot implmentations found.")
-                print("Please enter the robot Model to use: "
-                      "{}".format(supported_robots))
-                robot_model = input("Model: ")
-            else:
-                print("Robot implementation found: "
-                      "{}".format(supported_robots[0]))
-                print("Loading {} in 2 seconds..".format(supported_robots[0]))
-                time.sleep(2)
-                robot_model = supported_robots[0]
+    robot_interface = collection.get_robot_interface(robot_model)
 
-        try:
-            supported_robots.index(robot_model)
-        except ValueError as e:
-            raise NotImplementedError("Unknown/unsupported Robot model")
+    robot_kwargs = {
+        "frequency": robot_frequency,
+        "model": robot_model,
+        "ip_address": robot_ip,
+    }
 
-        robot_interface = collection.get_robot_interface(robot_model)
+    guide_with_internal_ft = False
+    if robot_interface.has_internal_ft_sensor():
+        guide_with_internal_ft = True
+        robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_ft
+    rob = robot_interface(**robot_kwargs)
 
-        robot_kwargs = {
-            "frequency": robot_frequency,
-            "model": robot_model,
-            "ip_address": robot_ip,
-        }
+    if rob is None:
+        print("Failed to load Robot implementation")
+        exit()
 
-        guide_with_internal_ft = False
-        if robot_interface.has_internal_ft_sensor():
-            guide_with_internal_ft = True
-            robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_ft
-        rob = robot_interface(**robot_kwargs)
+    thread = RobotCommunication(rob, robot_frequency)
 
-        assert rob is not None, "Failed to load Robot implementation"
+    if not rob.get_model() is robot_model:
+        print("Invalid Robot model loaded")
+        exit()
 
-        thread = RobotCommunication(rob, robot_frequency)
-        assert rob.get_model() is robot_model, "Invalid Robot model loaded"
+    print("Robot {} implementation loaded".format(rob.get_model()))
+    print("Connecting to Robot{}".format(robot_model))
+    try:
+        assert rob.connect(), "Robot connection failed"
+    except Exception as e:
+        print("ConnectionError: Robot connection failed.")
+        raise
 
-        print("Robot {} implementation loaded".format(rob.get_model()))
-        print("Connecting to Robot{}".format(robot_model))
-        try:
-            assert rob.connect(), "Robot connection failed"
-        except Exception as e:
-            err_txt = type(e).__name__
-            raise ConnectionError("Robot connection failed. " + err_txt)
-
+    try:
         thread.start()
         while thread.state is None and thread.running:
             time.sleep(0.1)
@@ -393,8 +400,7 @@ def main():
         check_if_equal(jnt_0, jf, jnt_accuracy, assrt=True)
 
     except Exception as e:
-
-        if thread and not thread.running:
+        if not thread.running:
             if debug:
                 raise thread.thread_error
             if thread.thread_error is None:
@@ -405,7 +411,7 @@ def main():
 
         if debug:
             raise
-        e_list.append(e)
+
         for err in e_list:
             s = err.args[0] if err.args else ""
             err_txt = type(err).__name__ + ": " + s
