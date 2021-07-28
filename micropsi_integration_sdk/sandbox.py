@@ -73,7 +73,7 @@ class RobotCommunication(threading.Thread):
             self.thread_error = e
 
     def add_log(self, txt):
-        if not txt in self.logs:
+        if txt not in self.logs:
             self.logs.append(txt)
 
     def flush_logs(self):
@@ -291,10 +291,6 @@ def main():
         "ip_address": robot_ip,
     }
 
-    guide_with_internal_ft = False
-    if robot_interface.has_internal_ft_sensor():
-        guide_with_internal_ft = True
-        robot_kwargs["guide_with_internal_sensor"] = guide_with_internal_ft
     rob = robot_interface(**robot_kwargs)
 
     if rob is None:
@@ -327,8 +323,14 @@ def main():
         jnt_pos_lmt = rob.get_joint_position_limits()
         has_internal_ft = rob.has_internal_ft_sensor()
 
-        if has_internal_ft and guide_with_internal_ft:
-            assert len(thread.state.raw_wrench) == 6, "Invalid FT data"
+        if has_internal_ft:
+            err_txt = "Invalid FT data: {}".format(thread.state.raw_wrench)
+            assert thread.state.raw_wrench is not None, err_txt
+            assert len(thread.state.raw_wrench) == 6, err_txt
+        else:
+            err_txt = "raw_wrench is expected to be None if no internal FT "
+            "sensor present. value found: {}".format(thread.state.raw_wrench)
+            assert thread.state.raw_wrench is None, err_txt
 
         jnt_e = "Invalid joint positions"
         assert len(thread.state.joint_positions) == jnt_cnt, jnt_e
