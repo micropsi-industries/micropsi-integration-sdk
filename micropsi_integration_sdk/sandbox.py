@@ -4,7 +4,8 @@ import time
 import threading
 from math import ceil
 import numpy as np
-import micropsi_integration_sdk.toolbox as tb
+import micropsi_integration_sdk.toolbox as toolbox
+from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 
 
@@ -31,6 +32,7 @@ class RobotCommunication(threading.Thread):
     Connection thread to continuously fetch the robot state
     """
     def __init__(self, robot_interface, frequency):
+        super().__init__(name="RobotCommunication")
         self.rob = robot_interface
         self.frequency = frequency
         self.state = None
@@ -39,13 +41,10 @@ class RobotCommunication(threading.Thread):
         self.last_target = None
         self.last_target_tcp = None
 
-        threading.Thread.__init__(self)
-
         self.thread_error = None
-
         self.logs = []
-
         self.last_flush = 0
+        self.robot_connected = False
 
     def run(self):
         try:
@@ -74,9 +73,8 @@ class RobotCommunication(threading.Thread):
             self.thread_error = e
 
     def add_log(self, txt):
-        if txt in self.logs:
-            return
-        self.logs.append(txt)
+        if not txt in self.logs:
+            self.logs.append(txt)
 
     def flush_logs(self):
         for i in self.logs:
@@ -93,7 +91,7 @@ class RobotCommunication(threading.Thread):
         assert jnt_f is not None
         assert jnt_0 is not None
 
-        dist = tb.dist(tcp_0[:3], tcp_f[:3])
+        dist = toolbox.dist(tcp_0[:3], tcp_f[:3])
 
         jnt_diff = jnt_f - jnt_0
 
@@ -115,15 +113,15 @@ class RobotCommunication(threading.Thread):
             time.sleep(max(overstep, 0))
 
         start = time.time()
-        while not (tb.check_jnt_target(jnt_, jnt_curr, jnt_accuracy)[0] and
-                   tb.check_tcp_target(tcp_f, tcp_curr, tcp_accuracy)[0]
+        while not (check_jnt_target(jnt_, jnt_curr, jnt_accuracy)[0] and
+                   check_tcp_target(tcp_f, tcp_curr, tcp_accuracy)[0]
                    ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             if time.time() - start > TIMEOUT:
                 break
 
         jnt_c, tcp_c = self.manual_step()
-        eq, msg = tb.check_jnt_target(jnt_f, jnt_c, jnt_accuracy)
+        eq, msg = check_jnt_target(jnt_f, jnt_c, jnt_accuracy)
         assert eq, msg
 
         self.last_target = np.array(jnt_f)
@@ -141,16 +139,16 @@ class RobotCommunication(threading.Thread):
         else:
             jnt_0 = self.last_target
             tcp_0 = self.last_target_tcp
-        jnt_0_1, tcp_0_1 = tb.get_modified_joints(self.rob, tcp_0,
-                                                  jnt_0, trans=action)
+        jnt_0_1, tcp_0_1 = toolbox.get_modified_joints(self.rob, tcp_0,
+                                                       jnt_0, trans=action)
 
         self.move_joints(jnt_0, jnt_0_1, tcp_0, tcp_0_1, **kwargs)
 
         jnt_1, tcp_1 = self.manual_step()
 
-        eq, msg = tb.check_jnt_target(jnt_1, jnt_0_1, jnt_acc)
+        eq, msg = check_jnt_target(jnt_0_1, jnt_1, jnt_acc)
         assert eq, msg
-        eq, msg = tb.check_tcp_target(tcp_1, tcp_0_1, tcp_acc)
+        eq, msg = check_tcp_target(tcp_0_1, tcp_1, tcp_acc)
         assert eq, msg
 
         return jnt_0, jnt_0_1, tcp_1
@@ -176,11 +174,16 @@ class RobotCommunication(threading.Thread):
     def manual_step(self):
         self.step += 1
         tf = self.rob.forward_kinematics(self.state.joint_positions)
-        return self.state.joint_positions, tb.extract_tcp(tf)
+        return self.state.joint_positions, toolbox.extract_tcp(tf)
 
     def send_joint_positions(self, jnt):
         self.rob.send_joint_positions(jnt, self.frequency, self.step)
         return self.manual_step()
+
+    def disconnect_robot(self):
+        # Release Control
+        self.rob.release_control()
+        self.rob.disconnect()
 
     def close(self):
         """
@@ -189,11 +192,6 @@ class RobotCommunication(threading.Thread):
         self.running = False
         if self.is_alive():
             self.join()
-
-        # Release Control
-        self.rob.release_control()
-        self.rob.disconnect()
-        print("{} Disconnected".format(self.rob.get_model()))
 
 
 def parse_args():
@@ -207,33 +205,32 @@ def parse_args():
     required.add_argument("robot", nargs='?', default=None, help="Name of the"
                           " robot model as defined in the implementation")
     optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
-                          metavar='\b', type=float,
+                          type=float,
                           help="Frequency of the Robot. Default: {}Hz."
                           "".format(DEF_FREQUENCY))
 
     optional.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED,
-                          type=float, metavar='\b', help=" TCP "
+                          type=float, help=" TCP "
                           "speed in meter per second Default: {}, "
                           "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
     optional.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
-                          metavar='\b', help="Number of Axis to move "
-                          "the robot in. Default: {}".format(DEF_DIMENSION))
+                          help="Number of Axis to move the robot in. Default:"
+                          " {}".format(DEF_DIMENSION))
 
     optional.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
-                          metavar='\b', help="Length of movement, Default:{}"
+                          help="Length of movement, Default:{}"
                           " meters, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
 
-    optional.add_argument("-ip", "--ip", default=DEFAULT_IP, metavar='\b',
+    optional.add_argument("-ip", "--ip", default=DEFAULT_IP,
                           help="IP address of the robot. Default:"
                           " {}".format(DEFAULT_IP))
 
     optional.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC,
-                          type=float, metavar='\b', help="Accuracy of the "
-                          "robot joints. Default: {} radians"
-                          "".format(DEFAULT_ACC))
+                          type=float, help="Accuracy of the robot joints."
+                          " Default: {} radians".format(DEFAULT_ACC))
 
     optional.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC,
-                          type=float, metavar='\b',
+                          type=float,
                           help="Accuracy of the TCP position achieved by "
                           "robot. Default: {} meters".format(DEFAULT_ACC))
     optional.add_argument("-v", "--verbose", action="store_true",
@@ -256,7 +253,7 @@ def main():
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
 
-    robot_path = tb.extract_path(path)
+    robot_path = toolbox.extract_path(path)
 
     collection = RobotInterfaceCollection()
     collection.load_interface_file(robot_path)
@@ -360,21 +357,26 @@ def main():
         # Send move to current position instruction to protect against
         # outdated move instructions in Robot register.
         thread.move_joints(jnt_0, jnt_0, tcp_0, tcp_0, **kwargs)
-        eq, msg = tb.check_jnt_target(jnt_0, thread.state.joint_positions,
-                                      jnt_accuracy)
+        eq, msg = check_jnt_target(jnt_0, thread.state.joint_positions,
+                                   jnt_accuracy)
         assert eq, msg
 
-        actions = tb.gen_random_actions(dimensions, dist=dist)
+        actions = toolbox.gen_random_actions(dimensions, dist=dist)
 
         for i in range(len(actions)):
             print("Moving to: Position  {}".format(i + 1))
             j0, jf, tf = thread.move_robot(actions[i], **kwargs)
-            time.sleep(2.1)
+            time.sleep(2.)
 
-        eq, msg = tb.check_tcp_target(tcp_0, tf, tcp_accuracy)
+        eq, msg = check_tcp_target(tf, tcp_0, tcp_accuracy)
         assert eq, msg
-        eq, msg = tb.check_jnt_target(jnt_0, jf, jnt_accuracy)
+        eq, msg = check_jnt_target(jf, jnt_0, jnt_accuracy)
         assert eq, msg
+
+        # Release Control
+        rob.release_control()
+        rob.disconnect()
+        print("{} Disconnected".format(rob.get_model()))
 
     except Exception as e:
         if not thread.running:
@@ -395,11 +397,11 @@ def main():
             print(err_txt)
 
     finally:
-        try:
-            thread.close()
-        except:
-            if len(e_list) == 0:
-                raise
+        for action in [thread.close, rob.release_control, rob.disconnect]:
+            try:
+                action()
+            except:
+                pass
 
 
 if __name__ == '__main__':
