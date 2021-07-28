@@ -245,13 +245,19 @@ def main():
     path = args.path
     robot_model = args.robot
     robot_ip = args.ip
-
     robot_frequency = args.frequency
-    dimensions = args.dimension if (args.dimension < 4 and args.dimension > 0) else 1
+
     dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
     jnt_accuracy = args.joint_tolerance if args.joint_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
+
+    if args.dimension < 4 and args.dimension > 0:
+        dimensions = args.dimension
+    else:
+        print("\nDimensions out of Range: {}. \nCurrently only 3 dimensions, "
+              "translations in 'x', 'y' and 'z' supported.\nFalling back to "
+              "1 dimension movement.\n".format(args.dimension))
 
     robot_path = toolbox.extract_path(path)
 
