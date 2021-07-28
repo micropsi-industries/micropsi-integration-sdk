@@ -26,34 +26,6 @@ DEF_DIMENSION = 1
 TIMEOUT = 5
 
 
-def check_if_equal(arr_1, arr_2, E, pose=False, assrt=False):
-    """
-    Checks if two incomming poses are equivalent (delta < E).
-    For pose only the linear component of position is verified
-    """
-    if pose:
-        input_data = "TCP"
-        arr_length = 3
-    else:
-        input_data = "Joint"
-        arr_length = 6
-
-    assert len(arr_1) == len(arr_2), "Invalid {} pose".format(input_data)
-
-    try:
-        assert np.all(np.abs(arr_1[:arr_length]-arr_2[:arr_length]) < E)
-        return True
-
-    except AssertionError as e:
-        e.args += ("""Target {} pose not achieved.
-        Expected: Pose {},
-        Recieved: Pose {}.
-        """.format(input_data, arr_1[:arr_length], arr_2[:arr_length]),)
-        if assrt:
-            raise e
-        return False
-
-
 class RobotCommunication(threading.Thread):
     """
     Connection thread to continuously fetch the robot state
@@ -143,15 +115,16 @@ class RobotCommunication(threading.Thread):
             time.sleep(max(overstep, 0))
 
         start = time.time()
-        while not (check_if_equal(jnt_, jnt_curr, jnt_accuracy) and
-                   check_if_equal(tcp_f, tcp_curr, tcp_accuracy, pose=True)
+        while not (tb.check_jnt_target(jnt_, jnt_curr, jnt_accuracy)[0] and
+                   tb.check_tcp_target(tcp_f, tcp_curr, tcp_accuracy)[0]
                    ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             if time.time() - start > TIMEOUT:
                 break
 
-        check_if_equal(self.state.joint_positions, jnt_f, jnt_accuracy,
-                       assrt=True)
+        jnt_c, tcp_c = self.manual_step()
+        eq, msg = tb.check_jnt_target(jnt_f, jnt_c, jnt_accuracy)
+        assert eq, msg
 
         self.last_target = np.array(jnt_f)
         self.last_target_tcp = np.array(tcp_f)
@@ -175,8 +148,10 @@ class RobotCommunication(threading.Thread):
 
         jnt_1, tcp_1 = self.manual_step()
 
-        check_if_equal(jnt_1, jnt_0_1, jnt_acc, assrt=True)
-        check_if_equal(tcp_1, tcp_0_1, tcp_acc, pose=True, assrt=True)
+        eq, msg = tb.check_jnt_target(jnt_1, jnt_0_1, jnt_acc)
+        assert eq, msg
+        eq, msg = tb.check_tcp_target(tcp_1, tcp_0_1, tcp_acc)
+        assert eq, msg
 
         return jnt_0, jnt_0_1, tcp_1
 
@@ -339,9 +314,8 @@ def main():
     print("Connecting to Robot{}".format(robot_model))
     try:
         assert rob.connect(), "Robot connection failed"
-    except Exception as e:
+    except AssertionError as e:
         print("ConnectionError: Robot connection failed.")
-        raise
 
     try:
         thread.start()
@@ -386,8 +360,9 @@ def main():
         # Send move to current position instruction to protect against
         # outdated move instructions in Robot register.
         thread.move_joints(jnt_0, jnt_0, tcp_0, tcp_0, **kwargs)
-        check_if_equal(jnt_0, thread.state.joint_positions, jnt_accuracy,
-                       assrt=True)
+        eq, msg = tb.check_jnt_target(jnt_0, thread.state.joint_positions,
+                                      jnt_accuracy)
+        assert eq, msg
 
         actions = tb.gen_random_actions(dimensions, dist=dist)
 
@@ -396,8 +371,10 @@ def main():
             j0, jf, tf = thread.move_robot(actions[i], **kwargs)
             time.sleep(2.1)
 
-        check_if_equal(tcp_0, tf, tcp_accuracy, pose=True, assrt=True)
-        check_if_equal(jnt_0, jf, jnt_accuracy, assrt=True)
+        eq, msg = tb.check_tcp_target(tcp_0, tf, tcp_accuracy)
+        assert eq, msg
+        eq, msg = tb.check_jnt_target(jnt_0, jf, jnt_accuracy)
+        assert eq, msg
 
     except Exception as e:
         if not thread.running:

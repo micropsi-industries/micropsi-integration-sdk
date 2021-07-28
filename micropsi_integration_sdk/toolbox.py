@@ -173,3 +173,32 @@ def extract_path(path):
               ": {}".format(path))
         exit()
     return os.path.expanduser(path)
+
+
+def check_jnt_target(arr_1,arr_2, E):
+
+    if not (len(arr_1) == 6 and len(arr_2) == 6):
+        return False, "Invalid Joint poses"
+
+    if not np.all(np.abs(arr_1 - arr_2) < E):
+        ret_txt = ("""Target Joint pose not achieved.
+        Expected: Pose {},
+        Recieved: Pose {}.
+        """.format(arr_1, arr_2))
+        return False, ret_txt
+    return True, ""
+
+
+def check_tcp_target(arr_1,arr_2, E):
+
+    if not (len(arr_1) == 6 and len(arr_2) == 6):
+        return False, "Invalid TCP poses"
+
+    if not np.all(np.abs(arr_1[:3] - arr_2[:3]) < E):
+        ret_txt = ("""Target TCP pose not achieved.
+        Expected: Pose x: {}, y: {}, z: {} 
+        Recieved: Pose x: {}, y: {}, z: {}
+        """.format(arr_1[0], arr_1[1], arr_1[2],
+                   arr_2[0], arr_2[1], arr_2[2]))
+        return False, ret_txt
+    return True, ""
