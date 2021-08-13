@@ -1,10 +1,13 @@
 import importlib
 import importlib.util
 import inspect
+import logging
 import os
 from pathlib import Path
 
 from micropsi_integration_sdk import JointPositionRobot
+
+logger = logging.getLogger(__name__)
 
 
 class RobotInterfaceCollection:
@@ -43,17 +46,14 @@ class RobotInterfaceCollection:
                 for robot_model in obj.get_supported_models():
                     self.__robots[robot_model] = obj
 
-    def load_interface_directory(self, path, errors=None):
+    def load_interface_directory(self, path):
         """
         Given a path to directory of files,
         attempt to load files
         """
-        errors = errors or []
         for f in os.listdir(path):
             abspath = os.path.join(path, f)
             try:
                 self.load_interface(abspath)
             except Exception as e:
-                errors.extend(str(e))
-
-        return errors
+                logger.exception(e)
