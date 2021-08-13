@@ -271,13 +271,12 @@ class JointPositionRobot(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def send_joint_positions(self, *, joint_positions: np.array, period: float,
-                             step_count: int) -> None:
+    def send_joint_positions(self, *, joint_positions: np.ndarray, step_count: int) -> None:
         """
         Send joint positions to the robot for immediate execution.
         Another call to this method can be expected after the period has elapsed, so the hardware
-        should achieve the provided joint positions within a single period in order to be ready
-        for the next instruction.
+        should achieve the provided joint positions within a single period at the configured
+        frequency in order to be ready for the next instruction.
         """
         raise NotImplementedError
 
