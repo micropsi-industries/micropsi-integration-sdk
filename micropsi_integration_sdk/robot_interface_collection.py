@@ -1,9 +1,10 @@
-from micropsi_integration_sdk.robot_sdk import ServoRobot
-import importlib.util
-import uuid
-import os
 import importlib
+import importlib.util
 import inspect
+import os
+from pathlib import Path
+
+from micropsi_integration_sdk import JointPositionRobot
 
 
 class RobotInterfaceCollection:
@@ -29,7 +30,8 @@ class RobotInterfaceCollection:
         for name, obj in inspect.getmembers(module):
             if not isinstance(obj, type):
                 continue
-            if issubclass(obj, ServoRobot) and obj is not ServoRobot:
+            if (issubclass(obj, JointPositionRobot)
+                    and obj is not JointPositionRobot):
                 for robot_model in obj.get_supported_models():
                     self.__robots[robot_model] = obj
 

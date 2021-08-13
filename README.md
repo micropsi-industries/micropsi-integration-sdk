@@ -7,7 +7,8 @@ Package can be installed by
 pip install .
 ```
 ## Robot SDK
-```ServoRobot``` Interface provides list of methods that needs to be implemented for the robot control.
+```JointPositionRobot``` Interface provides list of methods that needs to be implemented for the 
+robot control.
 
 
 ## Mirai Sandbox

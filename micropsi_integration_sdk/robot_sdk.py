@@ -4,11 +4,15 @@ from typing import Optional
 
 import numpy as np
 
-ServoRobotState = namedtuple("ServoRobotState", ("raw_wrench", "joint_positions",
-                                                 "joint_speeds", "joint_temps"))
+HardwareState = namedtuple("HardwareState", (
+    "joint_positions",
+    "joint_speeds",
+    "joint_temperatures",
+    "raw_wrench",
+))
 
 
-class ServoRobot(ABC):
+class JointPositionRobot(ABC):
     """
     Methods to be implemented for controlling a robot.
     The implementation of this ABC will be used by the environment (usually the MicroPsi runtime)
@@ -200,17 +204,25 @@ class ServoRobot(ABC):
     ####################
 
     @abstractmethod
-    def get_hardware_state(self) -> Optional[ServoRobotState]:
+    def get_hardware_state(self) -> Optional[HardwareState]:
         """
-        Return state information from configured hardware sources as a ServoRobotState object.
+        Return state information from the robot platform as a HardwareState object.
+
+        joint_positions and joint_speeds should be populated in units appropriate to the robot
+        platform. Units should be consistent between those returned from this get_hardware_state
+        function, and those expected as input to the forward_kinematics function.
+        raw_wrench (if available) should be returned relative to the end-effector frame, and
+        should be a 6-element numpy array in Newtons and Newton-Meters:
+            array([Fx, Fy, Fz, Tx, Ty, Tz])
 
         Notes:
-            1. If the implementation cannot produce a valid ServoRobotState object, it should
-                return None. Returning incorrect or partial values may cause the MicroPsi runtime
-                to issue a safety stop.
-            2. The exception to point 1. is the raw_wrench field. If an implementation cannot
-                provide raw wrench data natively, this field should be set to None. The  MicroPsi
-                runtime will instead collect data from a separately configured external sensor.
+            1. If the implementation cannot produce a valid hardwareState object, it should
+                instead return None. Returning incorrect or partial values may cause the MicroPsi
+                runtime to issue a stop command.
+            2. The exceptions to point 1. are the optional joint_temperatures and raw_wrench fields.
+                If a robot platform cannot provide raw wrench or joint temperature data natively,
+                these fields should each be set to None in an otherwise valid HardwareState
+                object.
         """
         raise NotImplementedError
 
