@@ -9,12 +9,14 @@ SUPPORTED_MODELS = {
         "joint_count": 6,
         "joint_speed_limits": np.array([np.pi, np.pi, np.pi, np.pi, np.pi, np.pi]),
         "joint_position_limits": np.array([[-np.pi, np.pi], [-np.pi, np.pi], [-np.pi, np.pi],
-                                           [-np.pi, np.pi], [-np.pi, np.pi], [-np.pi, np.pi]])
+                                           [-np.pi, np.pi], [-np.pi, np.pi], [-np.pi, np.pi]]),
+        "rest_position": np.zeros(6),
     },
     "MyRobot Gantry": {
         "joint_count": 4,
         "joint_speed_limits": np.array([.2, .2, .2, np.pi]),
-        "joint_position_limits": np.array([[-.5, .5], [-.5, .5], [-.5, .5], [-np.pi, np.pi]])
+        "joint_position_limits": np.array([[-.5, .5], [-.5, .5], [-.5, .5], [-np.pi, np.pi]]),
+        "rest_position": np.zeros(4),
     }
 }
 
@@ -60,17 +62,23 @@ class MyRobot(JointPositionRobot):
         self.__ready_for_control = False
 
     def get_hardware_state(self) -> Optional[HardwareState]:
-        pass
+        joint_positions = SUPPORTED_MODELS[self.model]["rest_position"]
+        return HardwareState(
+            joint_positions=SUPPORTED_MODELS[self.model]["rest_position"],
+            joint_speeds=np.zeros(len(joint_positions)),
+            raw_wrench=None,
+            joint_temperatures=None
+        )
 
     def clear_cached_hardware_state(self) -> None:
         pass
 
     def forward_kinematics(self, *, joint_positions: np.array) -> np.array:
-        pass
+        return np.identity(4)
 
     def inverse_kinematics(self, *, end_effector_pose: np.array,
                            joint_reference: Optional[np.array]) -> Optional[np.array]:
-        pass
+        return SUPPORTED_MODELS[self.model]["rest_position"]
 
     def are_joint_positions_safe(self, *, joint_positions: np.array) -> bool:
         return False

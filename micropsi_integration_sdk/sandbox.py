@@ -7,6 +7,7 @@ import numpy as np
 import micropsi_integration_sdk.toolbox as toolbox
 from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
+from micropsi_integration_sdk import JointPositionRobot
 
 
 DEFAULT_IP = "192.168.100.100"
@@ -33,7 +34,7 @@ class RobotCommunication(threading.Thread):
     """
     def __init__(self, robot_interface, frequency):
         super().__init__(name="RobotCommunication")
-        self.rob = robot_interface
+        self.rob: JointPositionRobot = robot_interface
         self.frequency = frequency
         self.state = None
         self.running = True
@@ -173,11 +174,14 @@ class RobotCommunication(threading.Thread):
 
     def manual_step(self):
         self.step += 1
-        tf = self.rob.forward_kinematics(self.state.joint_positions)
+        tf = self.rob.forward_kinematics(joint_positions=self.state.joint_positions)
         return self.state.joint_positions, toolbox.extract_tcp(tf)
 
     def send_joint_positions(self, jnt):
-        self.rob.send_joint_positions(jnt, self.frequency, self.step)
+        if not self.rob.are_joint_positions_safe(joint_positions=jnt):
+            raise RuntimeError("Robot interface reported target joint posititons as unsafe during "
+                               "movement.")
+        self.rob.send_joint_positions(joint_positions=jnt, step_count=self.step)
         return self.manual_step()
 
     def disconnect_robot(self):
