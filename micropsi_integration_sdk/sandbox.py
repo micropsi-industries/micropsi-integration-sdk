@@ -202,7 +202,7 @@ def parse_args():
     parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool")
     parser._action_groups.pop()
 
-    required = parser.add_argument_group("requried arguments")
+    required = parser.add_argument_group("required arguments")
     optional = parser.add_argument_group("optional arguments")
 
     required.add_argument("path", help="Path to the Robot implementation")
