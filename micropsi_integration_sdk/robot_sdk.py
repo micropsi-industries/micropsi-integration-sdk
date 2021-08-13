@@ -94,13 +94,6 @@ class ServoRobot(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_model(self) -> str:
-        """
-        Return the model name of the robot. Should be unique within a robot manufacturer.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def get_joint_count(self) -> int:
         """
         Return the number of joints (degrees of freedom) of the robot.

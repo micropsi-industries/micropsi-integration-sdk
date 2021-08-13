@@ -305,11 +305,11 @@ def main():
 
     thread = RobotCommunication(rob, robot_frequency)
 
-    if not rob.get_model() is robot_model:
+    if not rob.model is robot_model:
         print("Invalid Robot model loaded")
         exit()
 
-    print("Robot {} implementation loaded".format(rob.get_model()))
+    print("Robot {} implementation loaded".format(rob.model))
     print("Connecting to Robot{}".format(robot_model))
     try:
         assert rob.connect(), "Robot connection failed"
@@ -384,7 +384,7 @@ def main():
         # Release Control
         rob.release_control()
         rob.disconnect()
-        print("{} Disconnected".format(rob.get_model()))
+        print("{} Disconnected".format(rob.model))
 
     except Exception as e:
         if not thread.running:
