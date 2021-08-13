@@ -17,13 +17,22 @@ class RobotInterfaceCollection:
     def get_robot_interface(self, robot_model):
         return self.__robots[robot_model]
 
-    def load_interface_file(self, filepath):
+    def load_interface(self, filepath):
         """
         Given a path to a python module implementing a robot class inheriting from the
         JointPositionRobot, store this class in the __robots dict.
         """
-        module_id = str(uuid.uuid4())
-        spec = importlib.util.spec_from_file_location(name=module_id, location=filepath)
+        filepath = Path(filepath)
+        module_id = filepath.name
+        while '.' in module_id:
+            module_id = os.path.splitext(module_id)[0]
+        module_id = module_id
+        if filepath.is_dir():
+            spec = importlib.util.spec_from_file_location(
+                name=module_id, location=str(filepath / '__init__.py'),
+                submodule_search_locations=[str(filepath)])
+        else:
+            spec = importlib.util.spec_from_file_location(name=module_id, location=str(filepath))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         for name, obj in inspect.getmembers(module):
@@ -34,19 +43,17 @@ class RobotInterfaceCollection:
                 for robot_model in obj.get_supported_models():
                     self.__robots[robot_model] = obj
 
-    def load_interface_directory(self, path, errors=[]):
+    def load_interface_directory(self, path, errors=None):
         """
         Given a path to directory of files,
         attempt to load files
         """
+        errors = errors or []
         for f in os.listdir(path):
-            if f.endswith(".py"):
-                abspath = os.path.join(path, f)
-                try:
-                    err = self.load_interface_file(abspath)
-                    if err:
-                        errors.extend(err)
-                except Exception as e:
-                    errors.extend(e)
+            abspath = os.path.join(path, f)
+            try:
+                self.load_interface(abspath)
+            except Exception as e:
+                errors.extend(str(e))
 
         return errors

@@ -262,7 +262,7 @@ def main():
     robot_path = toolbox.extract_path(path)
 
     collection = RobotInterfaceCollection()
-    collection.load_interface_file(robot_path)
+    collection.load_interface(robot_path)
     supported_robots = sorted(collection.list_robots())
     e_list = []
 
