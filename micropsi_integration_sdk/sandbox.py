@@ -1,14 +1,16 @@
-from argparse import ArgumentParser
-
-import time
+import os.path
+import sys
 import threading
+import time
+from argparse import ArgumentParser, RawTextHelpFormatter
 from math import ceil
-import numpy as np
-import micropsi_integration_sdk.toolbox as toolbox
-from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
-from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
-from micropsi_integration_sdk import JointPositionRobot
 
+import numpy as np
+
+import micropsi_integration_sdk.toolbox as toolbox
+from micropsi_integration_sdk import JointPositionRobot
+from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
+from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
 
 DEFAULT_IP = "192.168.100.100"
 MAX_TCP_SPEED = 0.1
@@ -32,6 +34,7 @@ class RobotCommunication(threading.Thread):
     """
     Connection thread to continuously fetch the robot state
     """
+
     def __init__(self, robot_interface, frequency):
         super().__init__(name="RobotCommunication")
         self.rob: JointPositionRobot = robot_interface
@@ -56,7 +59,7 @@ class RobotCommunication(threading.Thread):
                 self.state = self.get_state()
 
                 elapsed = (time.time() - start)
-                overstep = (1/self.frequency) - elapsed
+                overstep = (1 / self.frequency) - elapsed
 
                 if overstep > 0:
                     time.sleep(overstep)
@@ -100,9 +103,9 @@ class RobotCommunication(threading.Thread):
         max_vel_ovrshoot = max(vel - speed_lim_jnt)
         delta_jnt = max(ceil(max_vel_ovrshoot), 1)
 
-        delta = max(dist * self.frequency/speed_lim_tcp, delta_jnt)
+        delta = max(dist * self.frequency / speed_lim_tcp, delta_jnt)
 
-        jnt_delta = jnt_diff/delta
+        jnt_delta = jnt_diff / delta
 
         jnt_ = jnt_0.copy()
         for i in range(max(int(ceil(delta)), 1)):
@@ -110,13 +113,13 @@ class RobotCommunication(threading.Thread):
             jnt_ = jnt_ + jnt_delta
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             elapsed = (time.time() - start)
-            overstep = (1/self.frequency) - elapsed
+            overstep = (1 / self.frequency) - elapsed
             time.sleep(max(overstep, 0))
 
         start = time.time()
         while not (check_jnt_target(jnt_, jnt_curr, jnt_accuracy)[0] and
                    check_tcp_target(tcp_f, tcp_curr, tcp_accuracy)[0]
-                   ) and self.running:
+        ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             if time.time() - start > TIMEOUT:
                 break
@@ -179,7 +182,7 @@ class RobotCommunication(threading.Thread):
 
     def send_joint_positions(self, jnt):
         if not self.rob.are_joint_positions_safe(joint_positions=jnt):
-            raise RuntimeError("Robot interface reported target joint posititons as unsafe during "
+            raise RuntimeError("Robot interface reported target joint positions as unsafe during "
                                "movement.")
         self.rob.send_joint_positions(joint_positions=jnt, step_count=self.step)
         return self.manual_step()
@@ -199,46 +202,38 @@ class RobotCommunication(threading.Thread):
 
 
 def parse_args():
-    parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool")
-    parser._action_groups.pop()
+    parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool",
+                            epilog='Usage example: %s ./examples/myrobot'
+                                   % os.path.basename(sys.argv[0]),
+                            formatter_class=RawTextHelpFormatter)
 
-    required = parser.add_argument_group("required arguments")
-    optional = parser.add_argument_group("optional arguments")
-
-    required.add_argument("path", help="Path to the Robot implementation")
-    required.add_argument("robot", nargs='?', default=None, help="Name of the"
-                          " robot model as defined in the implementation")
-    optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
-                          type=float,
-                          help="Frequency of the Robot. Default: {}Hz."
-                          "".format(DEF_FREQUENCY))
-
-    optional.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED,
-                          type=float, help=" TCP "
-                          "speed in meter per second Default: {}, "
-                          "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
-    optional.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
-                          help="Number of Axis to move the robot in. Default:"
-                          " {}".format(DEF_DIMENSION))
-
-    optional.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
-                          help="Length of movement, Default:{}"
-                          " meters, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
-
-    optional.add_argument("-ip", "--ip", default=DEFAULT_IP,
-                          help="IP address of the robot. Default:"
-                          " {}".format(DEFAULT_IP))
-
-    optional.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC,
-                          type=float, help="Accuracy of the robot joints."
-                          " Default: {} radians".format(DEFAULT_ACC))
-
-    optional.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC,
-                          type=float,
-                          help="Accuracy of the TCP position achieved by "
-                          "robot. Default: {} meters".format(DEFAULT_ACC))
-    optional.add_argument("-v", "--verbose", action="store_true",
-                          help="(Flag) Enable traceback of failed tests.")
+    parser.add_argument("path", help="Path to the Robot implementation")
+    parser.add_argument("robot", nargs='?', default=None,
+                        help="Name of the robot model as defined in the implementation.")
+    parser.add_argument("-f", "--frequency", default=DEF_FREQUENCY, type=float,
+                        help="Frequency of the robot control loop, Hertz.\n"
+                             "Default: {}".format(DEF_FREQUENCY))
+    parser.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED, type=float,
+                        help="TCP speed, meters per second.\n"
+                             "Default: {}, Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
+    parser.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
+                        help="Number of axes to move the robot in.\n"
+                             "Default: {}".format(DEF_DIMENSION))
+    parser.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
+                        help="Length of test movement, meters.\n"
+                             "Default:{}, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
+    parser.add_argument("-ip", "--ip", default=DEFAULT_IP, type=str,
+                        help="IP address of the robot.\n"
+                             "Default: {}".format(DEFAULT_IP))
+    parser.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC, type=float,
+                        help="Accuracy of the robot joints,  "
+                             "(units determined by implementation).\n"
+                             "Default: {}".format(DEFAULT_ACC))
+    parser.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC, type=float,
+                        help="Accuracy of the TCP position achieved by robot.\n"
+                             "Default: {} meters".format(DEFAULT_ACC))
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Enable traceback on errors.")
     return parser.parse_args()
 
 
