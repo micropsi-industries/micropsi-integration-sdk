@@ -19,9 +19,8 @@ class RobotInterfaceCollection:
 
     def load_interface_file(self, filepath):
         """
-        Given a path to a file implementing a robot class
-        inheriting from the ServoRobot, store this class
-        in the __robots dict.
+        Given a path to a python module implementing a robot class inheriting from the
+        JointPositionRobot, store this class in the __robots dict.
         """
         module_id = str(uuid.uuid4())
         spec = importlib.util.spec_from_file_location(name=module_id, location=filepath)
