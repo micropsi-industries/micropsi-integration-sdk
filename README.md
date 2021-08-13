@@ -13,7 +13,8 @@ robot control.
 
 ## Mirai Sandbox
 Stand alone tool to test the Robot SDK based Robot control implementation.
-- Moves the robot and verifies the implementation of methods described in Robot SDK. Most importantly the implementation of IK and FK.
+- Moves the robot and verifies the implementation of methods described in Robot SDK. Most 
+importantly the implementation of IK and FK.
 - The direction (x, y or z axis) and length of the movement can be configured.
 
 ### Running the Mirai Sandbox tool
