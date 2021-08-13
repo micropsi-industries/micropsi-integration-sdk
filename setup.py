@@ -1,11 +1,11 @@
-from distutils.core import setup, Extension
+from distutils.core import setup
 
-setup(name='mirai-sandbox',
-      version='0.1',
-      packages=['micropsi_integration_sdk'],
-      description='integration SDK for micropsi Industries',
-      install_requires=['numpy'],
-      entry_points = { 
-            "console_scripts" : ['mirai-sandbox=micropsi_integration_sdk.sandbox:main'],
-      },
-      )
+setup(
+      name="micropsi-integration-sdk",
+      packages=["micropsi_integration_sdk"],
+      description="Integration SDK for Micropsi Industries.",
+      install_requires=["numpy"],
+      entry_points={
+            "console_scripts": ["mirai-sandbox=micropsi_integration_sdk.sandbox:main"],
+      }
+)
