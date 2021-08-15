@@ -237,7 +237,6 @@ def parse_args():
 
 
 def main():
-    thread = None
     args = parse_args()
     debug = args.verbose
     path = args.path
@@ -276,13 +275,13 @@ def main():
             print("Please select a robot model:\n"
                   "{}".format(os.linesep.join(robot_list)))
             robot_idx = int(input("Index [0-%d]: " % (len(robot_list)-1)))
-            robot_model = supported_robots[robot_idx]
         else:
             print("Robot implementation found: "
                   "{}".format(supported_robots[0]))
-            print("Loading {} in 2 seconds..".format(supported_robots[0]))
-            time.sleep(2)
-            robot_model = supported_robots[0]
+            robot_idx = 0
+        robot_model = supported_robots[robot_idx]
+        print("Loading {} in 2 seconds..".format(supported_robots[0]))
+        time.sleep(2)
 
     try:
         supported_robots.index(robot_model)
