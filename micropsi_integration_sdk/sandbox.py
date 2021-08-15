@@ -8,7 +8,6 @@ from math import ceil
 import numpy as np
 
 import micropsi_integration_sdk.toolbox as toolbox
-from micropsi_integration_sdk import JointPositionRobot
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
 
@@ -37,7 +36,7 @@ class RobotCommunication(threading.Thread):
 
     def __init__(self, robot_interface, frequency):
         super().__init__(name="RobotCommunication")
-        self.rob: JointPositionRobot = robot_interface
+        self.rob = robot_interface
         self.frequency = frequency
         self.state = None
         self.running = True
@@ -64,7 +63,7 @@ class RobotCommunication(threading.Thread):
                 if overstep > 0:
                     time.sleep(overstep)
                 else:
-                    self.add_log("WARNING: Robot Frequency too high")
+                    self.add_log("WARNING: Robot frequency too high")
 
                 secs_since_last_flush = time.time() - self.last_flush
 
@@ -207,7 +206,7 @@ def parse_args():
                                    % os.path.basename(sys.argv[0]),
                             formatter_class=RawTextHelpFormatter)
 
-    parser.add_argument("path", help="Path to the Robot implementation")
+    parser.add_argument("path", help="Path to the robot implementation")
     parser.add_argument("robot", nargs='?', default=None,
                         help="Name of the robot model as defined in the implementation.")
     parser.add_argument("-f", "--frequency", default=DEF_FREQUENCY, type=float,
@@ -251,12 +250,13 @@ def main():
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
 
-    if args.dimension < 4 and args.dimension > 0:
+    if 0 < args.dimension < 4:
         dimensions = args.dimension
     else:
         print("\nDimensions out of Range: {}. \nCurrently only 3 dimensions, "
               "translations in 'x', 'y' and 'z' supported.\nFalling back to "
               "1 dimension movement.\n".format(args.dimension))
+        dimensions = 1
 
     robot_path = toolbox.extract_path(path)
 
@@ -266,15 +266,17 @@ def main():
     e_list = []
 
     if len(supported_robots) == 0:
-        print("No Robot Implementation found.")
+        print("No robot implementation found.")
         exit()
 
     if robot_model is None:
         if len(supported_robots) > 1:
-            print("Multiple robot implmentations found.")
-            print("Please enter the robot Model to use: "
-                  "{}".format(supported_robots))
-            robot_model = input("Model: ")
+            robot_list = ["%d: %s" % (idx, name) for idx, name in enumerate(supported_robots)]
+            print("Multiple robot implementations found.")
+            print("Please select a robot model:\n"
+                  "{}".format(os.linesep.join(robot_list)))
+            robot_idx = int(input("Index [0-%d]: " % (len(robot_list)-1)))
+            robot_model = supported_robots[robot_idx]
         else:
             print("Robot implementation found: "
                   "{}".format(supported_robots[0]))
@@ -285,7 +287,7 @@ def main():
     try:
         supported_robots.index(robot_model)
     except ValueError as e:
-        print("NotImplementedError: Unknown/unsupported Robot model")
+        print("NotImplementedError: Unknown/unsupported robot model")
         exit()
 
     robot_interface = collection.get_robot_interface(robot_model)
@@ -299,21 +301,21 @@ def main():
     rob = robot_interface(**robot_kwargs)
 
     if rob is None:
-        print("Failed to load Robot implementation")
+        print("Failed to load robot implementation")
         exit()
 
     thread = RobotCommunication(rob, robot_frequency)
 
     if not rob.model is robot_model:
-        print("Invalid Robot model loaded")
+        print("Invalid robot model loaded")
         exit()
 
     print("Robot {} implementation loaded".format(rob.model))
-    print("Connecting to Robot{}".format(robot_model))
+    print("Connecting to robot '{}'".format(robot_model))
     try:
         assert rob.connect(), "Robot connection failed"
     except AssertionError as e:
-        print("ConnectionError: Robot connection failed.")
+        print("ConnectionError: robot connection failed.")
 
     try:
         thread.start()
@@ -321,7 +323,7 @@ def main():
             time.sleep(0.1)
         print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
-        assert thread.state is not None, "Invalid Robot State"
+        assert thread.state is not None, "Invalid robot State"
 
         jnt_cnt = rob.get_joint_count()
         jnt_speed_lmt = rob.get_joint_speed_limits()
@@ -362,7 +364,7 @@ def main():
         print("Moving in {} axes, with distance {}".format(dimensions, dist))
 
         # Send move to current position instruction to protect against
-        # outdated move instructions in Robot register.
+        # outdated move instructions in robot register.
         thread.move_joints(jnt_0, jnt_0, tcp_0, tcp_0, **kwargs)
         eq, msg = check_jnt_target(jnt_0, thread.state.joint_positions,
                                    jnt_accuracy)
