@@ -15,10 +15,13 @@ setup(
     url="https://www.micropsi-industries.com/",
     description="Integration SDK for Micropsi Industries",
     long_description=read('README'),
+    long_description_content_type='text/markdown',
     packages=["micropsi_integration_sdk"],
     install_requires=["numpy"],
     entry_points={
         "console_scripts": ["mirai-sandbox=micropsi_integration_sdk.sandbox:main"],
     },
     platforms=[get_build_platform()],
+    python_requires=">=3.6, <4",
+    license="MIT",
 )
