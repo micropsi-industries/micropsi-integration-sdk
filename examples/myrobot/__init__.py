@@ -64,7 +64,7 @@ class MyRobot(JointPositionRobot):
     def get_hardware_state(self) -> Optional[HardwareState]:
         joint_positions = SUPPORTED_MODELS[self.model]["rest_position"]
         return HardwareState(
-            joint_positions=SUPPORTED_MODELS[self.model]["rest_position"],
+            joint_positions=joint_positions,
             joint_speeds=np.zeros(len(joint_positions)),
             raw_wrench=None,
             joint_temperatures=None
