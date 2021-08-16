@@ -4,11 +4,15 @@ from typing import Optional
 
 import numpy as np
 
-ServoRobotState = namedtuple("ServoRobotState", ("raw_wrench", "joint_positions",
-                                                 "joint_speeds", "joint_temps"))
+HardwareState = namedtuple("HardwareState", (
+    "joint_positions",
+    "joint_speeds",
+    "joint_temperatures",
+    "raw_wrench",
+))
 
 
-class ServoRobot(ABC):
+class JointPositionRobot(ABC):
     """
     Methods to be implemented for controlling a robot.
     The implementation of this ABC will be used by the environment (usually the MicroPsi runtime)
@@ -16,8 +20,8 @@ class ServoRobot(ABC):
 
     # Initialization
     Some of the methods in this class are called once before or during initialisation, to establish
-    basic information and kinematic properties of the robot: get_model, get_joint_count,
-    get_joint_speed_limits and get_joint_position_limits are examples of these.
+    basic information and kinematic properties of the robot: get_joint_count, get_joint_speed_limits
+    and get_joint_position_limits are examples of these.
     The information provided by these methods will be used for plausibility checks once the control
     loop is active.
 
@@ -38,19 +42,20 @@ class ServoRobot(ABC):
     MicroPsi runtime. These are get_hardware_state, clear_cached_hardware_state, forward_kinematics,
     inverse_kinematics, are_joint_positions_safe and, finally, send_joint_positions.
     send_joint_positions is the call asking for actual execution of a tool displacement, the other
-    calls are made in preparation of the parameters for send_joint_positions.
+    calls are made in preparation for send_joint_positions.
     All methods in this group will be called at relatively high frequency (commonly 50Hz) and the
-    sum of their execution times therefore needs to fit into a 20ms time box.
-    Note that send_joint_positions in particular cannot be blocking until the robot has executed
-    the movement. The environment does not expect complete execution of the requested movement. It
-    will not make any guarantees about executability (i.e. in terms of joint acceleration) of the
-    requested movement on the actual hardware. The time passing in one execution cycle is called a
-    "period" in the docstrings of these methods.
+    sum of their execution times therefore needs to fit into a single period at that frequency.
+    Note that send_joint_positions in particular cannot block until the robot has executed the
+    movement.
+    The micropsi controller will not make any guarantees about executability (i.e. in terms of
+    joint acceleration) of the requested movement on the actual hardware. The time passing in one
+    execution cycle is called a "period" in the docstrings of these methods.
 
     # Non-realtime control
     A fourth set of methods is for non-real time control of the robot, usually triggered by user
     interaction: command_move and command_stop can be blocking and should reliably leave the robot
-    in the requested state
+    in the requested state. In particular, command_stop may be called in safety-critical situations,
+    so it's important that it is immediately executed on the hardware.
     """
 
     def __init__(self, ip_address: str, model: str, frequency: float):
@@ -94,13 +99,6 @@ class ServoRobot(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_model(self) -> str:
-        """
-        Return the model name of the robot. Should be unique within a robot manufacturer.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def get_joint_count(self) -> int:
         """
         Return the number of joints (degrees of freedom) of the robot.
@@ -112,40 +110,37 @@ class ServoRobot(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_joint_speed_limits(self) -> np.array:
+    def get_joint_speed_limits(self) -> np.ndarray:
         """
-        Return the speed limits of each joint in the robot in order from base to end-effector.
+        Return the speed limits of each joint in the robot in order from base to end-effector, in
+        units per second appropriate to the robot platform.
 
         Examples:
-            For a robot with 6 revolute joints, that can each rotate at up to pi rad/s:
-                return np.array([
-                    np.pi,
-                    np.pi,
-                    np.pi,
-                    np.pi,
-                    np.pi,
-                    np.pi,
-                ])
+            For a robot arm with 6 revolute joints, that can each rotate at up to pi rad/s:
+                return array([pi, pi, pi, pi, pi, pi])
+
+            For a robot gantry with 3 linear joints that can translate at up to 0.2 m/s
+                and 1 revolute joint that can rotate at up to pi rad/s:
+                return array([.2, .2, .2, pi])
         """
         raise NotImplementedError
 
     @abstractmethod
-    def get_joint_position_limits(self) -> np.array:
+    def get_joint_position_limits(self) -> np.ndarray:
         """
         Return the position limits of each joint in order from base to end-effector.
-        Each limit should be returned as a pair of floats (min, max).
+        Each limit should be returned as a pair of floats (min, max), in units appropriate to the
+        robot platform.
 
         Examples:
-            For a robot with 6 revolute joints, that can each rotate one full turn in each
+            For a robot arm with 6 revolute joints, that can each rotate one full turn in each
                 direction:
-                return np.array([
-                    [-pi*2, pi*2],
-                    [-pi*2, pi*2],
-                    [-pi*2, pi*2],
-                    [-pi*2, pi*2],
-                    [-pi*2, pi*2],
-                    [-pi*2, pi*2]
-                ])
+                return array([[-pi*2, pi*2], [-pi*2, pi*2], [-pi*2, pi*2],
+                              [-pi*2, pi*2], [-pi*2, pi*2], [-pi*2, pi*2]])
+
+            For a robot gantry with 3 linear joints that can translate between -/+ 0.5m
+                and 1 revolute joint that can rotate between -/+ pi radians:
+                return array([[-.5, .5], [-.5, .5], [-.5, .5], [-pi, pi]])
         """
         raise NotImplementedError
 
@@ -207,17 +202,25 @@ class ServoRobot(ABC):
     ####################
 
     @abstractmethod
-    def get_hardware_state(self) -> Optional[ServoRobotState]:
+    def get_hardware_state(self) -> Optional[HardwareState]:
         """
-        Return state information from configured hardware sources as a ServoRobotState object.
+        Return state information from the robot platform as a HardwareState object.
+
+        joint_positions and joint_speeds should be populated in units appropriate to the robot
+        platform. Units should be consistent between those returned from this get_hardware_state
+        function, and those expected as input to the forward_kinematics function.
+        raw_wrench (if available) should be returned relative to the end-effector frame, and
+        should be a 6-element numpy array in Newtons and Newton-Meters:
+            array([Fx, Fy, Fz, Tx, Ty, Tz])
 
         Notes:
-            1. If the implementation cannot produce a valid ServoRobotState object, it should
-                return None. Returning incorrect or partial values may cause the MicroPsi runtime
-                to issue a safety stop.
-            2. The exception to point 1. is the raw_wrench field. If an implementation cannot
-                provide raw wrench data natively, this field should be set to None. The  MicroPsi
-                runtime will instead collect data from a separately configured external sensor.
+            1. If the implementation cannot produce a valid hardwareState object, it should
+                instead return None. Returning incorrect or partial values may cause the MicroPsi
+                runtime to issue a stop command.
+            2. The exceptions to point 1. are the optional joint_temperatures and raw_wrench fields.
+                If a robot platform cannot provide raw wrench or joint temperature data natively,
+                these fields should each be set to None in an otherwise valid HardwareState
+                object.
         """
         raise NotImplementedError
 
@@ -232,47 +235,46 @@ class ServoRobot(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def forward_kinematics(self, *, joint_positions: np.array) -> np.array:
+    def forward_kinematics(self, *, joint_positions: np.ndarray) -> np.ndarray:
         """
         Return the end-effector pose in {BASE} frame for the provided joint positions,
-        as a 4x4 homogeneous transform matrix:
-            R11 R12 R13 Dx
-            R21 R22 R23 Dy
-            R31 R32 R33 Dz
-            0   0   0   1
+        as a row-major, 4x4, homogeneous numpy array:
+            array([[R11, R12, R13, Dx],
+                   [R21, R22, R23, Dy],
+                   [R31, R32, R33, Dz],
+                   [0,   0,   0,   1]])
         """
         raise NotImplementedError
 
     @abstractmethod
-    def inverse_kinematics(self, *, end_effector_pose: np.array,
-                           joint_reference: Optional[np.array]) -> Optional[np.array]:
+    def inverse_kinematics(self, *, end_effector_pose: np.ndarray,
+                           joint_reference: Optional[np.ndarray]) -> Optional[np.ndarray]:
         """
         Return the joint positions required to achieve the provided end_effector_pose.
         If no acceptable solution can be found, return None.
 
         Args:
+            end_effector_pose: target pose for which joint positions should be computed.
             joint_reference (if not None): a nearby joint configuration to be used when
                 choosing the best solution.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def are_joint_positions_safe(self, *, joint_positions: np.array) -> bool:
+    def are_joint_positions_safe(self, *, joint_positions: np.ndarray) -> bool:
         """
         Return True if the provided joint positions represent a pose that is safe from self- or
-        environment-collisions, and close enough to the current joint positions that they could be
-        safely achieved within a single period at the configured frequency.
+        environment-collisions.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def send_joint_positions(self, *, joint_positions: np.array, period: float,
-                             step_count: int) -> None:
+    def send_joint_positions(self, *, joint_positions: np.ndarray, step_count: int) -> None:
         """
         Send joint positions to the robot for immediate execution.
         Another call to this method can be expected after the period has elapsed, so the hardware
-        should achieve the provided joint positions within a single period in order to be ready
-        for the next instruction.
+        should achieve the provided joint positions within a single period at the configured
+        frequency in order to be ready for the next instruction.
         """
         raise NotImplementedError
 
@@ -281,7 +283,7 @@ class ServoRobot(ABC):
     ########################
 
     @abstractmethod
-    def command_move(self, *, joint_positions: np.array) -> None:
+    def command_move(self, *, joint_positions: np.ndarray) -> None:
         """
         Send a move command to the robot.
         This is NOT a realtime command.
@@ -300,7 +302,7 @@ class ServoRobot(ABC):
     def command_stop(self) -> None:
         """
         Send a stop command to the robot.
-        This method may be called in safety-critical situations, so it's important that all
+        This method may be called in safety-critical situations, so it's important that all robot
         movement is immediately halted.
         """
         raise NotImplementedError

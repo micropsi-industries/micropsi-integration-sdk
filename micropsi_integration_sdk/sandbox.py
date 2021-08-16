@@ -1,13 +1,15 @@
-from argparse import ArgumentParser
-
-import time
+import os.path
+import sys
 import threading
+import time
+from argparse import ArgumentParser, RawTextHelpFormatter
 from math import ceil
-import numpy as np
-import micropsi_integration_sdk.toolbox as toolbox
-from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
-from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 
+import numpy as np
+
+import micropsi_integration_sdk.toolbox as toolbox
+from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
+from micropsi_integration_sdk.toolbox import check_tcp_target, check_jnt_target
 
 DEFAULT_IP = "192.168.100.100"
 MAX_TCP_SPEED = 0.1
@@ -31,6 +33,7 @@ class RobotCommunication(threading.Thread):
     """
     Connection thread to continuously fetch the robot state
     """
+
     def __init__(self, robot_interface, frequency):
         super().__init__(name="RobotCommunication")
         self.rob = robot_interface
@@ -55,12 +58,12 @@ class RobotCommunication(threading.Thread):
                 self.state = self.get_state()
 
                 elapsed = (time.time() - start)
-                overstep = (1/self.frequency) - elapsed
+                overstep = (1 / self.frequency) - elapsed
 
                 if overstep > 0:
                     time.sleep(overstep)
                 else:
-                    self.add_log("WARNING: Robot Frequency too high")
+                    self.add_log("WARNING: Robot frequency too high")
 
                 secs_since_last_flush = time.time() - self.last_flush
 
@@ -99,9 +102,9 @@ class RobotCommunication(threading.Thread):
         max_vel_ovrshoot = max(vel - speed_lim_jnt)
         delta_jnt = max(ceil(max_vel_ovrshoot), 1)
 
-        delta = max(dist * self.frequency/speed_lim_tcp, delta_jnt)
+        delta = max(dist * self.frequency / speed_lim_tcp, delta_jnt)
 
-        jnt_delta = jnt_diff/delta
+        jnt_delta = jnt_diff / delta
 
         jnt_ = jnt_0.copy()
         for i in range(max(int(ceil(delta)), 1)):
@@ -109,13 +112,13 @@ class RobotCommunication(threading.Thread):
             jnt_ = jnt_ + jnt_delta
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             elapsed = (time.time() - start)
-            overstep = (1/self.frequency) - elapsed
+            overstep = (1 / self.frequency) - elapsed
             time.sleep(max(overstep, 0))
 
         start = time.time()
         while not (check_jnt_target(jnt_, jnt_curr, jnt_accuracy)[0] and
                    check_tcp_target(tcp_f, tcp_curr, tcp_accuracy)[0]
-                   ) and self.running:
+        ) and self.running:
             jnt_curr, tcp_curr = self.send_joint_positions(jnt_)
             if time.time() - start > TIMEOUT:
                 break
@@ -173,11 +176,14 @@ class RobotCommunication(threading.Thread):
 
     def manual_step(self):
         self.step += 1
-        tf = self.rob.forward_kinematics(self.state.joint_positions)
+        tf = self.rob.forward_kinematics(joint_positions=self.state.joint_positions)
         return self.state.joint_positions, toolbox.extract_tcp(tf)
 
     def send_joint_positions(self, jnt):
-        self.rob.send_joint_positions(jnt, self.frequency, self.step)
+        if not self.rob.are_joint_positions_safe(joint_positions=jnt):
+            raise RuntimeError("Robot interface reported target joint positions as unsafe during "
+                               "movement.")
+        self.rob.send_joint_positions(joint_positions=jnt, step_count=self.step)
         return self.manual_step()
 
     def disconnect_robot(self):
@@ -195,51 +201,42 @@ class RobotCommunication(threading.Thread):
 
 
 def parse_args():
-    parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool")
-    parser._action_groups.pop()
+    parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool",
+                            epilog='Usage example: %s ./examples/myrobot'
+                                   % os.path.basename(sys.argv[0]),
+                            formatter_class=RawTextHelpFormatter)
 
-    required = parser.add_argument_group("requried arguments")
-    optional = parser.add_argument_group("optional arguments")
-
-    required.add_argument("path", help="Path to the Robot implementation")
-    required.add_argument("robot", nargs='?', default=None, help="Name of the"
-                          " robot model as defined in the implementation")
-    optional.add_argument("-f", "--frequency", default=DEF_FREQUENCY,
-                          type=float,
-                          help="Frequency of the Robot. Default: {}Hz."
-                          "".format(DEF_FREQUENCY))
-
-    optional.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED,
-                          type=float, help=" TCP "
-                          "speed in meter per second Default: {}, "
-                          "Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
-    optional.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
-                          help="Number of Axis to move the robot in. Default:"
-                          " {}".format(DEF_DIMENSION))
-
-    optional.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
-                          help="Length of movement, Default:{}"
-                          " meters, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
-
-    optional.add_argument("-ip", "--ip", default=DEFAULT_IP,
-                          help="IP address of the robot. Default:"
-                          " {}".format(DEFAULT_IP))
-
-    optional.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC,
-                          type=float, help="Accuracy of the robot joints."
-                          " Default: {} radians".format(DEFAULT_ACC))
-
-    optional.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC,
-                          type=float,
-                          help="Accuracy of the TCP position achieved by "
-                          "robot. Default: {} meters".format(DEFAULT_ACC))
-    optional.add_argument("-v", "--verbose", action="store_true",
-                          help="(Flag) Enable traceback of failed tests.")
+    parser.add_argument("path", help="Path to the robot implementation")
+    parser.add_argument("robot", nargs='?', default=None,
+                        help="Name of the robot model as defined in the implementation.")
+    parser.add_argument("-f", "--frequency", default=DEF_FREQUENCY, type=float,
+                        help="Frequency of the robot control loop, Hertz.\n"
+                             "Default: {}".format(DEF_FREQUENCY))
+    parser.add_argument("-s", "--tcp_speed", default=DEFAULT_TCP_SPEED, type=float,
+                        help="TCP speed, meters per second.\n"
+                             "Default: {}, Max: {}".format(DEFAULT_TCP_SPEED, MAX_TCP_SPEED))
+    parser.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
+                        help="Number of axes to move the robot in.\n"
+                             "Default: {}".format(DEF_DIMENSION))
+    parser.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
+                        help="Length of test movement, meters.\n"
+                             "Default:{}, Max: {}m".format(DEF_LENGTH, MAX_LENGTH))
+    parser.add_argument("-ip", "--ip", default=DEFAULT_IP, type=str,
+                        help="IP address of the robot.\n"
+                             "Default: {}".format(DEFAULT_IP))
+    parser.add_argument("-j", "--joint_tolerance", default=DEFAULT_ACC, type=float,
+                        help="Accuracy of the robot joints,  "
+                             "(units determined by implementation).\n"
+                             "Default: {}".format(DEFAULT_ACC))
+    parser.add_argument("-t", "--tcp_tolerance", default=DEFAULT_ACC, type=float,
+                        help="Accuracy of the TCP position achieved by robot.\n"
+                             "Default: {} meters".format(DEFAULT_ACC))
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Enable traceback on errors.")
     return parser.parse_args()
 
 
 def main():
-    thread = None
     args = parse_args()
     debug = args.verbose
     path = args.path
@@ -252,41 +249,44 @@ def main():
     tcp_accuracy = args.tcp_tolerance if args.tcp_tolerance <= ACCURACY_MAX else ACCURACY_MAX
     tcp_speed_lim = args.tcp_speed if args.tcp_speed <= MAX_TCP_SPEED else MAX_TCP_SPEED
 
-    if args.dimension < 4 and args.dimension > 0:
+    if 0 < args.dimension < 4:
         dimensions = args.dimension
     else:
         print("\nDimensions out of Range: {}. \nCurrently only 3 dimensions, "
               "translations in 'x', 'y' and 'z' supported.\nFalling back to "
               "1 dimension movement.\n".format(args.dimension))
+        dimensions = 1
 
     robot_path = toolbox.extract_path(path)
 
     collection = RobotInterfaceCollection()
-    collection.load_interface_file(robot_path)
+    collection.load_interface(robot_path)
     supported_robots = sorted(collection.list_robots())
     e_list = []
 
     if len(supported_robots) == 0:
-        print("No Robot Implementation found.")
+        print("No robot implementation found.")
         exit()
 
     if robot_model is None:
         if len(supported_robots) > 1:
-            print("Multiple robot implmentations found.")
-            print("Please enter the robot Model to use: "
-                  "{}".format(supported_robots))
-            robot_model = input("Model: ")
+            robot_list = ["%d: %s" % (idx, name) for idx, name in enumerate(supported_robots)]
+            print("Multiple robot implementations found.")
+            print("Please select a robot model:\n"
+                  "{}".format(os.linesep.join(robot_list)))
+            robot_idx = int(input("Index [0-%d]: " % (len(robot_list)-1)))
         else:
             print("Robot implementation found: "
                   "{}".format(supported_robots[0]))
-            print("Loading {} in 2 seconds..".format(supported_robots[0]))
-            time.sleep(2)
-            robot_model = supported_robots[0]
+            robot_idx = 0
+        robot_model = supported_robots[robot_idx]
+        print("Loading {} in 2 seconds..".format(supported_robots[0]))
+        time.sleep(2)
 
     try:
         supported_robots.index(robot_model)
     except ValueError as e:
-        print("NotImplementedError: Unknown/unsupported Robot model")
+        print("NotImplementedError: Unknown/unsupported robot model")
         exit()
 
     robot_interface = collection.get_robot_interface(robot_model)
@@ -300,21 +300,21 @@ def main():
     rob = robot_interface(**robot_kwargs)
 
     if rob is None:
-        print("Failed to load Robot implementation")
+        print("Failed to load robot implementation")
         exit()
 
     thread = RobotCommunication(rob, robot_frequency)
 
-    if not rob.get_model() is robot_model:
-        print("Invalid Robot model loaded")
+    if not rob.model is robot_model:
+        print("Invalid robot model loaded")
         exit()
 
-    print("Robot {} implementation loaded".format(rob.get_model()))
-    print("Connecting to Robot{}".format(robot_model))
+    print("Robot {} implementation loaded".format(rob.model))
+    print("Connecting to robot '{}'".format(robot_model))
     try:
         assert rob.connect(), "Robot connection failed"
     except AssertionError as e:
-        print("ConnectionError: Robot connection failed.")
+        print("ConnectionError: robot connection failed.")
 
     try:
         thread.start()
@@ -322,7 +322,7 @@ def main():
             time.sleep(0.1)
         print("Connected")
         jnt_speed_lim = rob.get_joint_speed_limits()
-        assert thread.state is not None, "Invalid Robot State"
+        assert thread.state is not None, "Invalid robot State"
 
         jnt_cnt = rob.get_joint_count()
         jnt_speed_lmt = rob.get_joint_speed_limits()
@@ -363,7 +363,7 @@ def main():
         print("Moving in {} axes, with distance {}".format(dimensions, dist))
 
         # Send move to current position instruction to protect against
-        # outdated move instructions in Robot register.
+        # outdated move instructions in robot register.
         thread.move_joints(jnt_0, jnt_0, tcp_0, tcp_0, **kwargs)
         eq, msg = check_jnt_target(jnt_0, thread.state.joint_positions,
                                    jnt_accuracy)
@@ -384,7 +384,7 @@ def main():
         # Release Control
         rob.release_control()
         rob.disconnect()
-        print("{} Disconnected".format(rob.get_model()))
+        print("{} Disconnected".format(rob.model))
 
     except Exception as e:
         if not thread.running:

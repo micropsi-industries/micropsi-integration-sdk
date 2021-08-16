@@ -1,4 +1,6 @@
+import os
 from math import sin, cos, atan2, sqrt
+
 import numpy as np
 
 
@@ -159,20 +161,9 @@ def extract_path(path):
     """
     Extract path from string
     """
-    import os
-
-    if path.startswith("./"):
-        path = os.getcwd() + path[1:]
-    elif not path.startswith("/"):
-        path = os.path.abspath(path)
-
-    from pathlib import Path
-    robot_implementation = Path(path)
-    if not robot_implementation.is_file():
-        print("FileNotFoundError: Robot implementation not found at path"
-              ": {}".format(path))
-        exit()
-    return os.path.expanduser(path)
+    path = os.path.expanduser(path)
+    path = os.path.abspath(path)
+    return path
 
 
 def check_jnt_target(arr_1,arr_2, E):
