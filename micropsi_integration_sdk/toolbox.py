@@ -50,7 +50,7 @@ def get_modified_joints(rob, tcp, jnt, trans=[0., 0., 0.], rot=[0., 0., 0.]):
         tcp_2[3+i] = tcp[3+i] + rot[i]
 
     tf = create_with_fixed_angle_pose(tcp_2[:3], tcp_2[3:])
-    jnt_2 = rob.inverse_kinematics(tf, jnt)
+    jnt_2 = rob.inverse_kinematics(end_effector_pose=tf, joint_reference=jnt)
     return jnt_2, tcp_2
 
 
