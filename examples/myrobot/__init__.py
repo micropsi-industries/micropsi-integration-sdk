@@ -81,7 +81,7 @@ class MyRobot(JointPositionRobot):
         return SUPPORTED_MODELS[self.model]["rest_position"]
 
     def are_joint_positions_safe(self, *, joint_positions: np.array) -> bool:
-        return False
+        return True
 
     def send_joint_positions(self, *, joint_positions: np.array, step_count: int) -> None:
         pass
