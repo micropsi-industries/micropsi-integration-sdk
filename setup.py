@@ -3,18 +3,26 @@ from setuptools import setup
 import os
 
 
-def read(file_name):
-    with open(os.path.join(os.path.dirname(__file__), file_name)) as handle:
+def read_relative(file_name):
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, file_name)) as handle:
         return handle.read()
+
+
+def get_version():
+    contents = {}
+    exec(read_relative("micropsi_integration_sdk/version.py"), contents)
+    return contents["VERSION"]
 
 
 setup(
     name="micropsi-integration-sdk",
+    version=get_version(),
     author="Micropsi Industries",
     author_email="contact@micropsi-industries.com",
     url="https://www.micropsi-industries.com/",
     description="Integration SDK for Micropsi Industries",
-    long_description=read('README'),
+    long_description=read_relative('README.md'),
     long_description_content_type='text/markdown',
     packages=["micropsi_integration_sdk"],
     install_requires=["numpy"],
