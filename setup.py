@@ -20,7 +20,7 @@ setup(
     version=get_version(),
     author="Micropsi Industries",
     author_email="contact@micropsi-industries.com",
-    url="https://www.micropsi-industries.com/",
+    url="https://github.com/micropsi-industries/micropsi-integration-sdk",
     description="Integration SDK for Micropsi Industries",
     long_description=read_relative('README.md'),
     long_description_content_type='text/markdown',
