@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 
-from micropsi_integration_sdk import JointPositionRobot
+from micropsi_integration_sdk import robot_sdk
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,7 @@ class RobotInterfaceCollection:
         for name, obj in inspect.getmembers(module):
             if not isinstance(obj, type):
                 continue
-            if (issubclass(obj, JointPositionRobot)
-                    and obj is not JointPositionRobot):
+            if issubclass(obj, robot_sdk.RobotInterface) and not inspect.isabstract(obj):
                 for robot_model in obj.get_supported_models():
                     self.__robots[robot_model] = obj
 
