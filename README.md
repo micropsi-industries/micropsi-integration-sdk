@@ -56,10 +56,10 @@ optional arguments:
                         Default: 192.168.100.100
   -tl TOLERANCE_LINEAR, --tolerance-linear TOLERANCE_LINEAR
                         Linear tolerance of the end-effector position achieved by robot.
-                        Default: 0.01 meters
+                        Default: 0.001 meters
   -ta TOLERANCE_ANGULAR, --tolerance-angular TOLERANCE_ANGULAR
                         Angular tolerance of the end-effector position achieved by robot.
-                        Default: 0.1 radians
+                        Default: 0.01 radians
   -v, --verbose         Enable debug logging.
 
 Usage example: mirai-sandbox ./examples/cartesian_robot.py
