@@ -22,8 +22,9 @@ class RobotInterfaceCollection:
 
     def load_interface(self, filepath):
         """
-        Given a path to a python module implementing a robot class inheriting from the
-        JointPositionRobot, store this class in the __robots dict.
+        Given a path to a python module implementing a non-abstract robot class inheriting from the
+        RobotInterface, store this class in the __robots dict against any model names it claims to
+        support.
         """
         filepath = Path(filepath)
         module_id = filepath.name

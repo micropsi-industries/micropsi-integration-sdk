@@ -201,7 +201,7 @@ class RobotCommunication(threading.Thread):
 
 def parse_args():
     parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool",
-                            epilog='Usage example: %s ./examples/myrobot'
+                            epilog='Usage example: %s ./examples/cartesian_robot.py'
                                    % os.path.basename(sys.argv[0]),
                             formatter_class=RawTextHelpFormatter)
 
