@@ -1,6 +1,7 @@
+import os
+
 from pkg_resources import get_build_platform
 from setuptools import setup
-import os
 
 
 def read_relative(file_name):
@@ -25,7 +26,7 @@ setup(
     long_description=read_relative('README.md'),
     long_description_content_type='text/markdown',
     packages=["micropsi_integration_sdk"],
-    install_requires=["numpy"],
+    install_requires=["numpy", "pyquaternion"],
     entry_points={
         "console_scripts": ["mirai-sandbox=micropsi_integration_sdk.sandbox:main"],
     },
