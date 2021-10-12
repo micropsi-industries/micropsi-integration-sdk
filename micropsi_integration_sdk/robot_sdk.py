@@ -244,6 +244,14 @@ class RobotInterface(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def are_joint_positions_safe(self, *, joint_positions: np.ndarray) -> bool:
+        """
+        Return True if the provided joint positions represent a pose that is safe from self- or
+        environment-collisions.
+        """
+        raise NotImplementedError
+
     ########################
     # Non-realtime control #
     ########################
@@ -331,14 +339,6 @@ class JointPositionRobot(RobotInterface):
             end_effector_pose: target pose for which joint positions should be computed.
             joint_reference (if not None): a nearby joint configuration to be used when
                 choosing the best solution.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def are_joint_positions_safe(self, *, joint_positions: np.ndarray) -> bool:
-        """
-        Return True if the provided joint positions represent a pose that is safe from self- or
-        environment-collisions.
         """
         raise NotImplementedError
 
