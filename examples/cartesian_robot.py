@@ -66,6 +66,14 @@ class MyCartesianRobot(CartesianRobot):
         assert goal_pose.shape == (4, 4)
         self.__joint_positions = goal_pose[:3, 3]
 
+    def are_joint_positions_safe(self, *, joint_positions: np.ndarray) -> bool:
+        limits = self.get_joint_position_limits()
+        for idx, joint_position in enumerate(joint_positions):
+            limit = limits[idx]
+            if not limit[0] < joint_position < limit[1]:
+                return False
+        return True
+
     def command_move(self, *, joint_positions: np.array) -> None:
         self.__joint_positions = np.copy(joint_positions)
 
