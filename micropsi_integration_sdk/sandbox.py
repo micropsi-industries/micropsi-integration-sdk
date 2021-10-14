@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 from argparse import ArgumentParser, RawTextHelpFormatter
+from contextlib import contextmanager
 
 import numpy as np
 from pyquaternion import Quaternion
@@ -281,88 +282,79 @@ def main():
             LOG.info("Robot implementation found: '%s'", supported_robots[0])
             robot_idx = 0
         robot_model = supported_robots[robot_idx]
-        LOG.info("Loading '%s'", robot_model)
+    assert robot_model in supported_robots, "Unsupported robot model"
 
+    LOG.info("Loading '%s'", robot_model)
+    interface_class = collection.get_robot_interface(robot_model)
+    interface = interface_class(frequency=robot_frequency, model=robot_model, ip_address=robot_ip)
+
+    with connected(interface):
+        controller = RobotCommunication(robot_interface=interface, frequency=robot_frequency,
+                                        tolerance_linear=tolerance_linear,
+                                        tolerance_angular=tolerance_angular,
+                                        speed_limit_linear=speed_limit_linear,
+                                        speed_limit_angular=speed_limit_angular)
+
+        preflight_checks(interface=interface, controller=controller)
+
+        with controlled(interface):
+            LOG.info("Moving in %d axes, with distance %.2fm", dimensions, dist)
+            movements = toolbox.generate_actions(dimensions=dimensions, distance=dist)
+            for idx, movement in enumerate(movements):
+                action = np.identity(4)
+                action[:3, 3] = movement
+                LOG.info("Moving to position %d", idx)
+                controller.set_action(action=action)
+                if not controller.wait_for_goal():
+                    raise RuntimeError("Timed out while waiting for the robot to achieve the "
+                                       "goal.")
+
+
+@contextmanager
+def connected(interface: robot_sdk.RobotInterface):
     try:
-        supported_robots.index(robot_model)
-    except ValueError as e:
-        exit("NotImplementedError: Unknown/unsupported robot model")
-
-    robot_interface = collection.get_robot_interface(robot_model)
-
-    robot_kwargs = {
-        "frequency": robot_frequency,
-        "model": robot_model,
-        "ip_address": robot_ip,
-    }
-
-    rob = robot_interface(**robot_kwargs)
-
-    if rob is None:
-        exit("Failed to load robot implementation")
-
-    thread = RobotCommunication(robot_interface=rob, frequency=robot_frequency,
-                                tolerance_linear=tolerance_linear,
-                                tolerance_angular=tolerance_angular,
-                                speed_limit_linear=speed_limit_linear,
-                                speed_limit_angular=speed_limit_angular)
-
-    if rob.model is not robot_model:
-        exit("Invalid robot model loaded")
-
-    LOG.info("Robot '%s' implementation loaded", rob.model)
-    LOG.info("Connecting to robot '%s'", rob.model)
-    assert rob.connect() is True, "Robot connection failed"
-
-    try:
-        if not thread.wait_for_state():
-            raise RuntimeError("Failed to get initial state from the robot.")
-
-        jnt_cnt = rob.get_joint_count()
-        jnt_speed_lmt = rob.get_joint_speed_limits()
-        jnt_pos_lmt = rob.get_joint_position_limits()
-        has_internal_ft = rob.has_internal_ft_sensor()
-
-        if has_internal_ft:
-            err_txt = "Invalid FT data: {}".format(thread.state.raw_wrench)
-            assert thread.state.raw_wrench is not None, err_txt
-            assert len(thread.state.raw_wrench) == 6, err_txt
-        else:
-            err_txt = ("raw_wrench is expected to be None if no internal FT sensor present. "
-                       "value found: {}").format(thread.state.raw_wrench)
-            assert thread.state.raw_wrench is None, err_txt
-
-        jnt_e = "Invalid joint positions"
-        assert len(thread.state.joint_positions) == jnt_cnt, jnt_e
-        assert len(jnt_pos_lmt) == jnt_cnt, jnt_e
-        assert len(jnt_speed_lmt) == jnt_cnt, jnt_e
-
-        rob.prepare_for_control()
-        rob.take_control()
-
-        LOG.info("Moving in %d axes, with distance %.2fm", dimensions, dist)
-
-        movements = toolbox.gen_random_movements(dimensions, dist=dist)
-
-        for idx, movement in enumerate(movements):
-            action = np.identity(4)
-            action[:3, 3] = movement
-            LOG.info("Moving to position %d", idx)
-            thread.set_action(action=action)
-            if not thread.wait_for_goal():
-                raise RuntimeError("Timed out while waiting for the robot to achieve the goal.")
-
-        # Release Control
-        rob.release_control()
-        rob.disconnect()
-        LOG.info("'%s' Disconnected", rob.model)
-
+        LOG.info("Connecting")
+        assert interface.connect() is True, "Failed to connect"
+        yield
     finally:
-        for teardown_step in [thread.close, rob.release_control, rob.disconnect]:
-            try:
-                teardown_step()
-            except Exception as e:
-                LOG.exception(e)
+        LOG.info("Disconnecting")
+        interface.disconnect()
+
+
+@contextmanager
+def controlled(interface: robot_sdk.RobotInterface):
+    try:
+        LOG.info("Taking control")
+        attempts = 0
+        while not interface.is_ready_for_control():
+            attempts += 1
+            if attempts > 10:
+                raise RuntimeError("Failed to prepare for control.")
+            interface.prepare_for_control()
+            time.sleep(.1)
+        interface.take_control()
+        yield
+    finally:
+        LOG.info("Releasing control")
+        interface.release_control()
+
+
+def preflight_checks(*, interface, controller):
+    assert controller.wait_for_state(), "Failed to get initial state."
+    if interface.has_internal_ft_sensor():
+        err_txt = f"Invalid FT data: {controller.state.raw_wrench}"
+        assert controller.state.raw_wrench is not None, err_txt
+        assert len(controller.state.raw_wrench) == 6, err_txt
+    else:
+        assert controller.state.raw_wrench is None, (
+            f"raw_wrench is expected to be None if no internal FT sensor present. "
+            f"Value found: {controller.state.raw_wrench}")
+
+    joint_error = "Invalid joint count"
+    joint_count = interface.get_joint_count()
+    assert len(controller.state.joint_positions) == joint_count, joint_error
+    assert len(interface.get_joint_position_limits()) == joint_count, joint_error
+    assert len(interface.get_joint_speed_limits()) == joint_count, joint_error
 
 
 if __name__ == '__main__':

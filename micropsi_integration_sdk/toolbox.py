@@ -12,23 +12,20 @@ def invert_transform(*, matrix: np.ndarray):
     return new_matrix
 
 
-def gen_random_movements(dim, dist):
+def generate_actions(*, dimensions: int, distance: float):
     """
-    Generate action sets in random order.
+    Generate action sets.
     Args:
-        dim: Number of axes to move in.
-        dist: Length of action in m
+        dimensions: Number of axes to move in.
+        distance: Length of action in m
     """
-    import random
     actions = []
-    ax = [0, 1, 2]
-    for i in range(dim):
+    for i in range(dimensions):
         action = [0, 0, 0]
-        action[ax[i]] = dist
-        actions.insert(len(actions), action.copy())
-        action[ax[i]] = -dist
-        actions.insert(len(actions), action)
-    random.shuffle(actions)
+        action[i] = distance
+        actions.append(action.copy())
+        action[i] = -distance
+        actions.append(action.copy())
     return actions
 
 
