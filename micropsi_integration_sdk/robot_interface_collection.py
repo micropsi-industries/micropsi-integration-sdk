@@ -7,7 +7,7 @@ from pathlib import Path
 
 from micropsi_integration_sdk import robot_sdk
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("system.micropsi_integration_sdk")
 
 
 class RobotInterfaceCollection:
@@ -26,6 +26,7 @@ class RobotInterfaceCollection:
         RobotInterface, store this class in the __robots dict against any model names it claims to
         support.
         """
+        logger.info("Searching %s for SDK robots.", filepath)
         filepath = Path(filepath)
         module_id = filepath.name
         while '.' in module_id:
@@ -40,11 +41,29 @@ class RobotInterfaceCollection:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         for name, obj in inspect.getmembers(module):
+            # Ignore anything that's not a class definition
             if not isinstance(obj, type):
                 continue
-            if issubclass(obj, robot_sdk.RobotInterface) and not inspect.isabstract(obj):
-                for robot_model in obj.get_supported_models():
-                    self.__robots[robot_model] = obj
+
+            # Ignore the base classes
+            if obj in (robot_sdk.RobotInterface, robot_sdk.CartesianRobot,
+                       robot_sdk.JointPositionRobot):
+                continue
+
+            # Ignore anything that's not an implementation of RobotInterface
+            if not issubclass(obj, robot_sdk.RobotInterface):
+                continue
+
+            # Loudly ignore anything that's not fully implemented. This could indicate that some
+            # abstract methods have been missed.
+            if inspect.isabstract(obj):
+                logger.debug("%s is not fully implemented, skipping.", name)
+                continue
+
+            # If we got this far, we have a full implementation of a RobotInterface
+            for robot_model in obj.get_supported_models():
+                logger.info("Found SDK robot: %s", robot_model)
+                self.__robots[robot_model] = obj
 
     def load_interface_directory(self, path):
         """
@@ -52,6 +71,8 @@ class RobotInterfaceCollection:
         attempt to load files
         """
         for f in os.listdir(path):
+            if f == "__pycache__":
+                continue
             abspath = os.path.join(path, f)
             try:
                 self.load_interface(abspath)
