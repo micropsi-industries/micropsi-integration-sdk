@@ -57,7 +57,7 @@ class RobotInterfaceCollection:
             # Loudly ignore anything that's not fully implemented. This could indicate that some
             # abstract methods have been missed.
             if inspect.isabstract(obj):
-                logger.debug("%s is not fully implemented, skipping.", name)
+                logger.info("%s is not fully implemented, skipping.", name)
                 continue
 
             # If we got this far, we have a full implementation of a RobotInterface
