@@ -56,10 +56,9 @@ class RobotInterface(ABC):
     """
     controller_type = "undefined"
 
-    def __init__(self, ip_address: str, model: str, frequency: float):
+    def __init__(self, ip_address: str, model: str):
         self.__ip_address = ip_address
         self.__model = model
-        self.__frequency = frequency
 
     @property
     def ip_address(self) -> str:
@@ -74,14 +73,6 @@ class RobotInterface(ABC):
         Robot model name.
         """
         return self.__model
-
-    @property
-    def frequency(self) -> float:
-        """
-        The frequency (Hz) at which the environment (usually the MicroPsi runtime) will call the
-        realtime control methods as discussed in the class docstring.
-        """
-        return self.__frequency
 
     ##################
     # Initialization #
@@ -281,14 +272,23 @@ class RobotInterface(ABC):
         """
         raise NotImplementedError
 
-    @staticmethod
-    def has_internal_ft_sensor() -> bool:
+    def has_internal_ft_sensor(self) -> bool:
         """
         Optional, override as appropriate.
 
         Return whether the robot interface can provide FT data in {end-effector} frame natively.
         """
         return False
+
+    def get_frequency(self) -> float:
+        """
+        Optional, override as appropriate.
+
+        The frequency (Hz) at which the environment (usually the MicroPsi runtime) may call the
+        realtime control methods as discussed in the class docstring.
+        Default is 50Hz. Override as appropriate.
+        """
+        return 50.
 
 
 class CartesianRobot(RobotInterface):
