@@ -10,8 +10,8 @@ pip3 install .
 ```
 
 ## Robot SDK
-`JointPositionRobot` Abstract Interface declares the list of methods that must be implemented for
-successful robot control.
+`JointPositionRobot` and `CartesianRobot` abstract Interface declaring the list of methods that 
+must be implemented for successful robot control.
 
 ## Mirai Sandbox
 Stand alone tool to test the SDK-based Robot control implementation.
@@ -21,10 +21,9 @@ the implementation of the high-frequency control loop.
 
 ### Running the Mirai Sandbox tool
 ```bash
-usage: mirai-sandbox [-h] [-m MODEL] [-f FREQUENCY] [-sl SPEED_LINEAR]
-                     [-sa SPEED_ANGULAR] [-d DIMENSION] [-l LENGTH]
-                     [-ip IP_ADDRESS] [-tl TOLERANCE_LINEAR]
-                     [-ta TOLERANCE_ANGULAR] [-v]
+usage: mirai-sandbox [-h] [-m MODEL] [-sl SPEED_LINEAR] [-sa SPEED_ANGULAR]
+                     [-d DIMENSION] [-l LENGTH] [-ip IP_ADDRESS]
+                     [-tl TOLERANCE_LINEAR] [-ta TOLERANCE_ANGULAR] [-v]
                      path
 
 Micropsi Industries Robot SDK Tool
@@ -36,9 +35,6 @@ optional arguments:
   -h, --help            show this help message and exit
   -m MODEL, --model MODEL
                         Name of the robot model as defined in the implementation.
-  -f FREQUENCY, --frequency FREQUENCY
-                        Frequency of the robot control loop, Hertz.
-                        Default: 50
   -sl SPEED_LINEAR, --speed-linear SPEED_LINEAR
                         Linear end-effector speed, meters per second.
                         Default: 0.05, Max: 0.1
