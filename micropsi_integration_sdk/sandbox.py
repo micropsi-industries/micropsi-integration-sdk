@@ -27,7 +27,6 @@ DEFAULT_ACC_ANGULAR = 1e-2
 ACCURACY_MAX = 0.1
 
 MAX_LINEAR_MOVEMENT = 0.1
-DEF_FREQUENCY = 50
 
 DEF_LENGTH = 0.05
 MAX_LENGTH = 0.1
@@ -42,14 +41,14 @@ class RobotCommunication(threading.Thread):
     Connection thread to continuously fetch the robot state
     """
 
-    def __init__(self, *, robot_interface, frequency, tolerance_linear, tolerance_angular,
-                 speed_limit_linear, speed_limit_angular):
+    def __init__(self, *, robot_interface: robot_sdk.RobotInterface, tolerance_linear,
+                 tolerance_angular, speed_limit_linear, speed_limit_angular):
         super().__init__(name="RobotCommunication", daemon=True)
-        self.__frequency = frequency
+        self.__frequency = robot_interface.get_frequency()
         self.__step_count = 0
         self.__interface: robot_sdk.RobotInterface = robot_interface
-        self.__max_linear_step = speed_limit_linear / frequency
-        self.__max_angular_step = speed_limit_angular / frequency
+        self.__max_linear_step = speed_limit_linear / self.__frequency
+        self.__max_angular_step = speed_limit_angular / self.__frequency
         self.__end_effector_accuracy_linear = tolerance_linear
         self.__end_effector_accuracy_angular = tolerance_angular
         self.__goal_pose = None
@@ -210,9 +209,6 @@ def parse_args():
                         help="Path to the robot implementation")
     parser.add_argument("-m", "--model", type=str,
                         help="Name of the robot model as defined in the implementation.")
-    parser.add_argument("-f", "--frequency", default=DEF_FREQUENCY, type=float,
-                        help="Frequency of the robot control loop, Hertz.\n"
-                             "Default: {}".format(DEF_FREQUENCY))
     parser.add_argument("-sl", "--speed-linear", default=DEFAULT_EE_SPEED, type=float,
                         help="Linear end-effector speed, meters per second.\n"
                              "Default: {}, Max: {}".format(DEFAULT_EE_SPEED, MAX_EE_SPEED))
@@ -247,7 +243,6 @@ def main():
     path = args.path
     robot_model = args.model
     robot_ip = args.ip_address
-    robot_frequency = args.frequency
 
     dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
     tolerance_linear = min(args.tolerance_linear, ACCURACY_MAX)
@@ -286,10 +281,10 @@ def main():
 
     LOG.info("Loading '%s'", robot_model)
     interface_class = collection.get_robot_interface(robot_model)
-    interface = interface_class(frequency=robot_frequency, model=robot_model, ip_address=robot_ip)
+    interface = interface_class(model=robot_model, ip_address=robot_ip)
 
     with connected(interface):
-        controller = RobotCommunication(robot_interface=interface, frequency=robot_frequency,
+        controller = RobotCommunication(robot_interface=interface,
                                         tolerance_linear=tolerance_linear,
                                         tolerance_angular=tolerance_angular,
                                         speed_limit_linear=speed_limit_linear,
