@@ -139,6 +139,14 @@ class RobotCommunication(threading.Thread):
                 raise RuntimeError("Encountered unsafe joint_positions.")
             self.__interface.send_joint_positions(joint_positions=joint_goal,
                                                   step_count=self.__step_count)
+        elif isinstance(self.__interface, robot_sdk.JointSpeedRobot):
+            joint_goal = self.__interface.inverse_kinematics(
+                end_effector_pose=step_goal, joint_reference=self.state.joint_positions)
+            if not self.__interface.are_joint_positions_safe(joint_positions=joint_goal):
+                raise RuntimeError("Encountered unsafe joint_positions.")
+            joint_speeds = (joint_goal - self.state.joint_positions) * self.__frequency
+            self.__interface.send_joint_speeds(joint_speeds=joint_speeds,
+                                               step_count=self.__step_count)
         else:
             raise TypeError("Unsupported robot type %s" % type(self.__interface))
 

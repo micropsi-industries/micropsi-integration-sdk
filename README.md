@@ -10,8 +10,8 @@ pip3 install .
 ```
 
 ## Robot SDK
-`JointPositionRobot` and `CartesianRobot` abstract Interface declaring the list of methods that 
-must be implemented for successful robot control.
+Abstract interfaces declaring the methods that must be implemented for successful control of each 
+supported robot type.
 
 ## Mirai Sandbox
 Stand alone tool to test the SDK-based Robot control implementation.

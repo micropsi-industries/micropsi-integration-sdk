@@ -1,5 +1,11 @@
+from .robot_sdk import HardwareState, CartesianRobot, JointPositionRobot, JointSpeedRobot
 from .version import VERSION
-from .robot_sdk import HardwareState, CartesianRobot, JointPositionRobot
 
-__all__ = ["HardwareState", "CartesianRobot", "JointPositionRobot"]
+__all__ = (
+    "HardwareState",
+    "CartesianRobot",
+    "JointPositionRobot",
+    "JointSpeedRobot",
+)
+
 __version__ = VERSION
