@@ -45,11 +45,6 @@ class RobotInterfaceCollection:
             if not isinstance(obj, type):
                 continue
 
-            # Ignore the base classes
-            if obj in (robot_sdk.RobotInterface, robot_sdk.CartesianRobot,
-                       robot_sdk.JointPositionRobot):
-                continue
-
             # Ignore anything that's not an implementation of RobotInterface
             if not issubclass(obj, robot_sdk.RobotInterface):
                 continue

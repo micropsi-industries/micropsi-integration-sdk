@@ -352,3 +352,42 @@ class JointPositionRobot(RobotInterface):
         frequency in order to be ready for the next instruction.
         """
         raise NotImplementedError
+
+
+class JointSpeedRobot(RobotInterface):
+    """
+    Specialization of the RobotInterface class for communicating the goal poses as a joint_positions
+    array. All methods of the base RobotInterface class must be implemented, and additionally
+    the inheriting class must implement the method(s) declared here.
+    """
+    controller_type = "joint_speed"
+
+    ####################
+    # Realtime control #
+    ####################
+
+    @abstractmethod
+    def inverse_kinematics(self, *, end_effector_pose: np.ndarray,
+                           joint_reference: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        """
+        Return the joint positions required to achieve the provided end_effector_pose.
+        If no acceptable solution can be found, return None.
+
+        Args:
+            end_effector_pose: target pose for which joint positions should be computed.
+            joint_reference (if not None): a nearby joint configuration to be used when
+                choosing the best solution.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_joint_speeds(self, *, joint_speeds: np.ndarray, step_count: int) -> None:
+        """
+        Send the joint speeds to the robot for immediate execution.
+        The speeds will be provided as a 1D numpy array of appropriate length for the robot joint
+        count.
+        Another call to this method can be expected after the period has elapsed, so the hardware
+        should achieve the provided joint speeds within a single period at the configured
+        frequency in order to be ready for the next instruction.
+        """
+        raise NotImplementedError
