@@ -4,8 +4,6 @@
 
 # Find tag
 TAG="$(git describe --tags)"
-echo "Tag is '${TAG}'"
-[[ -n "${TAG}" ]] || echo "Git tag must be checked out."
 
 # Find or make venv
 PYTHON=".venv/bin/python"
@@ -21,12 +19,13 @@ ${PYTHON} -m pip install -U twine
 # Check module version matches
 VERSION=$(${PYTHON} -c "exec(open('micropsi_integration_sdk/version.py').read()); print(VERSION)")
 echo "Version is '${VERSION}'"
-[[ "${TAG}" == "${VERSION}" ]] || echo "Git tag must match version."
+[[ "${TAG}" == "${VERSION}" ]] || { echo "Git tag '${TAG}' must match micropsi_integration_sdk.__version__ '${VERSION}'."; exit ${ERRCODE}; }
 
 # Build source distribution
 ${PYTHON} setup.py sdist
 echo "build complete"
 
 # Upload to pypi
-${PYTHON} -m twine upload "dist/micropsi-integration-sdk-${TAG}.tar.gz"
-echo "upload complete"
+#${PYTHON} -m twine upload "dist/micropsi-integration-sdk-${TAG}.tar.gz"
+echo "Upload complete"
+echo "Go to https://github.com/micropsi-industries/micropsi-integration-sdk and make a release from the '${TAG}' tag."
