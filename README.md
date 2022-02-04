@@ -58,5 +58,5 @@ optional arguments:
                         Default: 0.01 radians
   -v, --verbose         Enable debug logging.
 
-Usage example: mirai-sandbox ./examples/cartesian_robot.py
+Usage example: mirai-sandbox ./examples/cartesian_velocity_robot.py
 ```
