@@ -120,18 +120,26 @@ class RobotCommunication(threading.Thread):
         angular_step_displacement = min(self.__max_angular_step,
                                         angular_displacement.radians / 2)
         if angular_step_displacement > 0:
-            angular_step = Quaternion(axis=angular_displacement.axis,
-                                      radians=angular_step_displacement).rotation_matrix
+            angular_step_quaternion = Quaternion(
+                axis=angular_displacement.axis,
+                radians=angular_step_displacement
+            )
+            angular_step = angular_step_quaternion.rotation_matrix
+            angular_step_vector = angular_step_quaternion.axis * angular_step_displacement
         else:
             angular_step = np.identity(3)
+            angular_step_vector = np.zeros(3)
         step = np.identity(4)
         step[:3, :3] = angular_step
         step[:3, 3] = linear_step
         step_goal = self.current_pose @ step
         # LOG.debug("Target pose:\n%s", step_goal)
 
-        if isinstance(self.__interface, robot_sdk.CartesianRobot):
+        if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
             self.__interface.send_goal_pose(goal_pose=step_goal, step_count=self.__step_count)
+        elif isinstance(self.__interface, robot_sdk.CartesianVelocityRobot):
+            cartesian_velocity = np.hstack((linear_step, angular_step_vector)) * self.__frequency
+            self.__interface.send_velocity(velocity=cartesian_velocity, step_count=self.__step_count)
         elif isinstance(self.__interface, robot_sdk.JointPositionRobot):
             joint_goal = self.__interface.inverse_kinematics(
                 end_effector_pose=step_goal, joint_reference=self.state.joint_positions)
