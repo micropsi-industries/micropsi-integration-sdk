@@ -2,6 +2,13 @@
 # Username is 'micropsi-industries'
 # Get the password from doik
 
+# Make sure git status is all clear.
+if output=$(git status --porcelain) && [[ -n "$output" ]]; then
+    echo "Git checkout must be clean."
+    echo "${output}"
+    exit 1
+fi
+
 # Find tag
 TAG="$(git describe --tags)"
 
@@ -26,6 +33,6 @@ ${PYTHON} setup.py sdist
 echo "build complete"
 
 # Upload to pypi
-#${PYTHON} -m twine upload "dist/micropsi-integration-sdk-${TAG}.tar.gz"
+${PYTHON} -m twine upload "dist/micropsi-integration-sdk-${TAG}.tar.gz"
 echo "Upload complete"
 echo "Go to https://github.com/micropsi-industries/micropsi-integration-sdk and make a release from the '${TAG}' tag."
