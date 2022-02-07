@@ -1,7 +1,11 @@
+import logging
 from typing import Optional
 
 import numpy as np
+
 from micropsi_integration_sdk import JointSpeedRobot, HardwareState
+
+LOG = logging.getLogger(__name__)
 
 
 class MyJointSpeedRobot(JointSpeedRobot):
@@ -47,12 +51,14 @@ class MyJointSpeedRobot(JointSpeedRobot):
 
     def get_hardware_state(self) -> Optional[HardwareState]:
         joint_positions = np.copy(self.__joint_positions)
-        return HardwareState(
+        state = HardwareState(
             joint_positions=joint_positions,
             joint_speeds=None,
             joint_temperatures=None,
             raw_wrench=None,
         )
+        LOG.debug("State: %s", state)
+        return state
 
     def clear_cached_hardware_state(self) -> None:
         pass

@@ -291,13 +291,13 @@ class RobotInterface(ABC):
         return 50.
 
 
-class CartesianRobot(RobotInterface):
+class CartesianPoseRobot(RobotInterface):
     """
     Specialization of the RobotInterface class for communicating goal poses in cartesian
     coordinates. All methods of the base RobotInterface class must be implemented, and additionally
-    the inheriting class class must provide an implementation of the method(s) listed here.
+    the inheriting class must provide an implementation of the method(s) listed here.
     """
-    controller_type = "cartesian"
+    controller_type = "cartesian_pose"
 
     ####################
     # Realtime control #
@@ -312,6 +312,40 @@ class CartesianRobot(RobotInterface):
         Another call to this method can be expected after the period has elapsed, so the hardware
         should achieve the provided goal within a single period at the configured
         frequency in order to be ready for the next instruction.
+        """
+        raise NotImplementedError
+
+
+# legacy class, provided for backwards-compatibility
+class CartesianRobot(CartesianPoseRobot, ABC):
+    controller_type = "cartesian"
+
+
+class CartesianVelocityRobot(RobotInterface):
+    """
+    Specialization of the RobotInterface class for communicating goal velocities in cartesian
+    (base frame) coordinates. All methods of the base RobotInterface class must be implemented, and
+    additionally the inheriting class must provide an implementation of the method(s) listed
+    here.
+    """
+    controller_type = "cartesian_velocity"
+
+    ####################
+    # Realtime control #
+    ####################
+
+    @abstractmethod
+    def send_velocity(self, *, velocity: np.ndarray, step_count: int) -> None:
+        """
+        Send the goal end-effector velocity to the robot for immediate execution.
+        The goal velocity will be provided as a 6D array relative to the base frame of the
+        robot, in m/s and rad/s. [Vx, Vy, Vz, Wx, Wy, Wz]
+        Notes:
+            - The angular (W) components are provided in 3D axis-angle pseudo-vector form.
+
+        Another call to this method can be expected after the period has elapsed, so the
+        implementation should return within a single step at the configured frequency,
+        regardless of whether the goal velocity has been reached or not.
         """
         raise NotImplementedError
 

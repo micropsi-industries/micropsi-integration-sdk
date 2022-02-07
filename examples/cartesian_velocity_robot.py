@@ -1,11 +1,14 @@
+import logging
 from typing import Optional
 
 import numpy as np
 
-from micropsi_integration_sdk import CartesianRobot, HardwareState
+from micropsi_integration_sdk import CartesianVelocityRobot, HardwareState
+
+LOG = logging.getLogger(__name__)
 
 
-class MyCartesianRobot(CartesianRobot):
+class MyCartesianVelocityRobot(CartesianVelocityRobot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.__connected = False
@@ -15,7 +18,7 @@ class MyCartesianRobot(CartesianRobot):
 
     @staticmethod
     def get_supported_models() -> list:
-        return ["MyRobot Cartesian"]
+        return ["MyRobot Cartesian Velocity"]
 
     def get_joint_count(self) -> int:
         return 3
@@ -47,12 +50,14 @@ class MyCartesianRobot(CartesianRobot):
         self.__ready_for_control = False
 
     def get_hardware_state(self) -> Optional[HardwareState]:
-        return HardwareState(
+        state = HardwareState(
             joint_positions=np.copy(self.__joint_positions),
             joint_speeds=None,
             raw_wrench=None,
             joint_temperatures=None
         )
+        LOG.debug("Hardware state: %s", state)
+        return state
 
     def clear_cached_hardware_state(self) -> None:
         pass
@@ -62,9 +67,9 @@ class MyCartesianRobot(CartesianRobot):
         matrix[:3, 3] = joint_positions
         return matrix
 
-    def send_goal_pose(self, *, goal_pose: np.ndarray, step_count: int) -> None:
-        assert goal_pose.shape == (4, 4)
-        self.__joint_positions = goal_pose[:3, 3]
+    def send_velocity(self, *, velocity: np.ndarray, step_count: int) -> None:
+        assert velocity.shape == (6,), velocity.shape
+        self.__joint_positions += velocity[:3] / self.get_frequency()
 
     def are_joint_positions_safe(self, *, joint_positions: np.ndarray) -> bool:
         limits = self.get_joint_position_limits()
