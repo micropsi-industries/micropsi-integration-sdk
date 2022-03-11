@@ -48,6 +48,9 @@ def parse_args():
                              f"robot, for motion streaming.")
     parser.add_argument("--server-address", default="0.0.0.0",
                         help="Address that the mirai dev server should listen on.")
+    parser.add_argument("--always-fail", action="store_true", default=False,
+                        help="Cause the dev server to respond to every request with a failure"
+                             " message.")
     return parser.parse_args()
 
 
@@ -57,6 +60,7 @@ def main():
     robot_file = args.robot_file
     robot_address = args.robot_address
     server_address = args.server_address
+    always_fail = args.always_fail
     collection = RobotInterfaceCollection()
     collection.load_interface(robot_file)
     models = collection.list_robots()
@@ -71,7 +75,7 @@ def main():
     model = models[idx]
     robot_class = collection.get_robot_interface(model)
     robot = robot_class(ip_address=robot_address, model=model)
-    with contextlib.closing(Server(address=server_address, robot=robot)):
+    with contextlib.closing(Server(address=server_address, robot=robot, always_fail=always_fail)):
         logger.info(f"mirai dev server listening on {server_address}. ctrl-c to interrupt.")
         while True:
             time.sleep(1)
@@ -82,7 +86,8 @@ class ClientDisconnected(Exception):
 
 
 class Server(threading.Thread):
-    def __init__(self, *args, robot: RobotInterface, address: str, **kwargs):
+    def __init__(self, *args, robot: RobotInterface, address: str, always_fail: bool = False,
+                 **kwargs):
         super().__init__(*args, **kwargs, daemon=True)
         self.robot = robot
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -95,6 +100,7 @@ class Server(threading.Thread):
         self.executor = ThreadPoolExecutor(1)
         self.future = None
         self.result = Results.NoResult
+        self.always_fail = always_fail
         self.start()
 
     def __del__(self):
@@ -135,7 +141,9 @@ class Server(threading.Thread):
         mark, api_version, message_type, message_bytes = unpack_header(message)
         assert mark == API_MARK
         assert api_version == API_VERSION
-        if message_type == MessageType.ExecuteSkill:
+        if self.always_fail:
+            response = RESPONSE_MESSAGES[MessageType.FAILURE]
+        elif message_type == MessageType.ExecuteSkill:
             self.result = Results.NoResult
             try:
                 assert self.robot.connect() is True
