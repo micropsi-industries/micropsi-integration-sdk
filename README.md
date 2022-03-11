@@ -86,7 +86,7 @@ recommended that you first test this in simulation before attempting to control 
 ```shell
 usage: mirai-dev-server [-h] --robot-file ROBOT_FILE
                         [--robot-address ROBOT_ADDRESS]
-                        [--server-address SERVER_ADDRESS]
+                        [--server-address SERVER_ADDRESS] [--always-fail]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -98,6 +98,8 @@ optional arguments:
                         for motion streaming. (default: localhost)
   --server-address SERVER_ADDRESS
                         Address that the mirai dev server should listen on. (default: 0.0.0.0)
+  --always-fail         Cause the dev server to respond to every request with a failure message.
+                        (default: False)
 
 Usage example:
 # mirai-dev-server --robot-file examples/cartesian_velocity_robot.py
