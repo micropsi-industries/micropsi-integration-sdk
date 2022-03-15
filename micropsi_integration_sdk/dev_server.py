@@ -200,7 +200,7 @@ class Server(threading.Thread):
             goal_pose = self.robot.forward_kinematics(joint_positions=state.joint_positions)
             assert self.robot.are_joint_positions_safe(joint_positions=state.joint_positions)
             if isinstance(self.robot, CartesianVelocityRobot):
-                self.robot.send_velocity(velocity=np.zeros(6), step_count=step_count)
+                self.robot.send_velocity(velocity=np.random.rand(6) * 0.001, step_count=step_count)
             elif isinstance(self.robot, CartesianPoseRobot):
                 self.robot.send_goal_pose(goal_pose=goal_pose, step_count=step_count)
             else:
