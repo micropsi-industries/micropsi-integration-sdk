@@ -6,7 +6,7 @@ import os
 import socket
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future
 
 import numpy as np
 
@@ -139,15 +139,12 @@ class Server(threading.Thread):
             raise ClientDisconnected
         logger.info("received: %s", message)
         mark, api_version, message_type, message_bytes = unpack_header(message)
-        assert mark == API_MARK
-        assert api_version == API_VERSION
         if self.always_fail:
             response = RESPONSE_MESSAGES[MessageType.FAILURE]
         elif message_type == MessageType.ExecuteSkill:
             self.result = Results.NoResult
             try:
-                assert self.robot.connect() is True
-                self.future = self.executor.submit(self.execute_skill)
+                self.future = self.start_skill_execution()
             except Exception as e:
                 logger.error(e)
                 response = RESPONSE_MESSAGES[MessageType.FAILURE]
@@ -171,21 +168,27 @@ class Server(threading.Thread):
         logger.info("sending: %s", response)
         self.connection.sendto(response, self.client_address)
 
+    def start_skill_execution(self) -> Future:
+        """
+        Perform the initial connection handshake, and then defer the execution of a single skill
+        cycle.
+        """
+        assert self.robot.connect() is True
+        attempt = 0
+        while not self.robot.is_ready_for_control():
+            attempt += 1
+            if attempt > 10:
+                raise RuntimeError("robot never reported ready for control.")
+            self.robot.prepare_for_control()
+        self.robot.take_control()
+        return self.executor.submit(self.execute_skill)
+
     def execute_skill(self):
         """
         This function roughly follows one skill execution cycle.
         It sends zeros for the velocity, so should be safe to use on real hardware, assuming the
         sdk class is correctly implemented.
         """
-        attempts = 0
-        while attempts < 10:
-            attempts += 1
-            if self.robot.is_ready_for_control():
-                break
-            self.robot.prepare_for_control()
-        else:
-            raise RuntimeError("robot never reported ready for control.")
-        self.robot.take_control()
         step_count = 0
         frequency = self.robot.get_frequency()
         period = 1 / frequency
@@ -200,7 +203,7 @@ class Server(threading.Thread):
             goal_pose = self.robot.forward_kinematics(joint_positions=state.joint_positions)
             assert self.robot.are_joint_positions_safe(joint_positions=state.joint_positions)
             if isinstance(self.robot, CartesianVelocityRobot):
-                self.robot.send_velocity(velocity=np.random.rand(6) * 0.001, step_count=step_count)
+                self.robot.send_velocity(velocity=np.random.randn(6) * 0.001, step_count=step_count)
             elif isinstance(self.robot, CartesianPoseRobot):
                 self.robot.send_goal_pose(goal_pose=goal_pose, step_count=step_count)
             else:

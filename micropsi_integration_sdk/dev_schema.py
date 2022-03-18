@@ -31,6 +31,8 @@ def unpack_header(message: bytes) -> Tuple[str, int, MessageType, int]:
         raise Exception(f"Not enough bytes in header. Wanted {HEADER_BYTES}, got {len(message)}.")
     mark, api_version, message_type, message_bytes = struct.unpack(HEADER_FORMAT,
                                                                    message[:HEADER_BYTES])
+    assert mark == API_MARK
+    assert api_version == API_VERSION
     return mark, api_version, MessageType(message_type), message_bytes
 
 
