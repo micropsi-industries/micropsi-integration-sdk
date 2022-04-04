@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import socket
+import time
 
 from micropsi_integration_sdk.dev_schema import (
     MessageType,
@@ -25,6 +26,10 @@ def parse_args():
     )
     parser.add_argument("--server-address", default="localhost",
                         help="Hostname or IP address where the mirai dev server is running.")
+    parser.add_argument("--count", type=int, default=1,
+                        help="Send the command COUNT times, reusing the connection.")
+    parser.add_argument("--period", type=float, default=1,
+                        help="Wait PERIOD seconds between sent messages.")
     parser.add_argument("command", choices=[c.name for c in iter(MessageType)
                                             if c != MessageType.FAILURE])
     return parser.parse_args()
@@ -40,9 +45,17 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(1)
         sock.connect((server_address, 6599))
-        logger.info("sending %s", message)
-        sock.sendall(message)
-        recv_until_response(sock)
+        count = 0
+        while count < args.count:
+            count += 1
+            logger.info("sending %s", message)
+            sock.sendall(message)
+            recv_until_response(sock)
+            time.sleep(args.period)
+
+
+class ServerDisconnected(Exception):
+    pass
 
 
 def recv_until_response(sock: socket.socket) -> bytes:
@@ -55,6 +68,9 @@ def recv_until_response(sock: socket.socket) -> bytes:
             response = sock.recv(1024)
         except socket.timeout:
             continue
+        if response == b'':
+            raise ServerDisconnected
+
     logger.info("received, %s", response)
     return response
 

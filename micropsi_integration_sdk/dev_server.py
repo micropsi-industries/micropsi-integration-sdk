@@ -14,8 +14,6 @@ from micropsi_integration_sdk.dev_schema import (
     MessageType,
     Results,
     unpack_header,
-    API_MARK,
-    API_VERSION,
     RESULT_MESSAGES,
     RESPONSE_MESSAGES,
 )
@@ -51,21 +49,19 @@ def parse_args():
     parser.add_argument("--always-fail", action="store_true", default=False,
                         help="Cause the dev server to respond to every request with a failure"
                              " message.")
+    parser.add_argument("--keepalive", type=float, default=60,
+                        help="Keep idle client connections for KEEPALIVE seconds before dropping.")
     return parser.parse_args()
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
     args = parse_args()
-    robot_file = args.robot_file
-    robot_address = args.robot_address
-    server_address = args.server_address
-    always_fail = args.always_fail
     collection = RobotInterfaceCollection()
-    collection.load_interface(robot_file)
+    collection.load_interface(args.robot_file)
     models = collection.list_robots()
     if len(models) == 0:
-        raise RuntimeError(f"no robots found in {robot_file}")
+        raise RuntimeError(f"no robots found in {args.robot_file}")
     elif len(models) == 1:
         idx = 0
     else:
@@ -74,9 +70,11 @@ def main():
         idx = int(input(f"choose a model [0-{len(models) - 1}]: "))
     model = models[idx]
     robot_class = collection.get_robot_interface(model)
-    robot = robot_class(ip_address=robot_address, model=model)
-    with contextlib.closing(Server(address=server_address, robot=robot, always_fail=always_fail)):
-        logger.info(f"mirai dev server listening on {server_address}. ctrl-c to interrupt.")
+    robot = robot_class(ip_address=args.robot_address, model=model)
+    with contextlib.closing(Server(address=args.server_address, robot=robot,
+                                   always_fail=args.always_fail,
+                                   keepalive=args.keepalive)):
+        logger.info(f"mirai dev server listening on {args.server_address}. ctrl-c to interrupt.")
         while True:
             time.sleep(1)
 
@@ -85,56 +83,67 @@ class ClientDisconnected(Exception):
     pass
 
 
+@contextlib.contextmanager
+def final_shutdown(sock: socket.socket):
+    try:
+        yield
+    finally:
+        sock.shutdown(socket.SHUT_RDWR)
+
+
 class Server(threading.Thread):
     def __init__(self, *args, robot: RobotInterface, address: str, always_fail: bool = False,
-                 **kwargs):
+                 keepalive, **kwargs):
         super().__init__(*args, **kwargs, daemon=True)
         self.robot = robot
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.settimeout(1)
-        self.sock.bind((address, 6599))
-        self.connection = None
-        self.client_address = None
+        self.address = address
         self.running = True
         self.executor = ThreadPoolExecutor(1)
         self.future = None
         self.result = Results.NoResult
         self.always_fail = always_fail
+        self.keepalive = keepalive
         self.start()
-
-    def __del__(self):
-        self.sock.close()
 
     def close(self):
         self.running = False
         self.join()
 
     def run(self):
-        with contextlib.closing(self.sock):
-            self.sock.listen(1)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as main_socket:
+            main_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            main_socket.settimeout(1)
+            main_socket.bind((self.address, 6599))
+            main_socket.listen(1)
             while self.running:
                 try:
-                    self.accept_client()
+                    self.accept_client(main_socket)
                 except socket.timeout:
                     continue
 
-    def accept_client(self):
-        self.connection, self.client_address = self.sock.accept()
-        with contextlib.closing(self.connection):
-            self.connection.settimeout(1)
-            while self.running:
-                try:
-                    self.receive_data()
-                except socket.timeout:
-                    continue
-                except ClientDisconnected:
-                    logger.info("client disconnected")
-                    break
-        self.client_address = None
+    def accept_client(self, sock: socket.socket):
+        client, client_address = sock.accept()
+        client.settimeout(1)
+        with contextlib.closing(client):
+            with final_shutdown(client):
+                last_message_time = time.monotonic()
+                while self.running:
+                    try:
+                        message = client.recv(1024)
+                        response = self.handle_message(message)
+                        logger.info("sending: %s", response)
+                        client.sendall(response)
+                    except socket.timeout:
+                        if time.monotonic() - last_message_time > self.keepalive:
+                            logger.info("keepalive time exceeded, dropping client")
+                            break
+                    except ClientDisconnected:
+                        logger.info("client disconnected")
+                        break
+                    else:
+                        last_message_time = time.monotonic()
 
-    def receive_data(self):
-        message = self.connection.recv(1024)
+    def handle_message(self, message: bytes) -> bytes:
         if message == b"":
             raise ClientDisconnected
         logger.info("received: %s", message)
@@ -165,8 +174,7 @@ class Server(threading.Thread):
                     self.future = None
         else:
             response = RESPONSE_MESSAGES[message_type]
-        logger.info("sending: %s", response)
-        self.connection.sendto(response, self.client_address)
+        return response
 
     def start_skill_execution(self) -> Future:
         """
