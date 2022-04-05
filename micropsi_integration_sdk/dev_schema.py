@@ -20,6 +20,7 @@ class MessageType(IntEnum):
     GetLastEndstateValues = 6
     GetExceptionMessage = 7
     FAILURE = 8
+    KeepAlive = 9
 
 
 def unpack_header(message: bytes) -> Tuple[str, int, MessageType, int]:
@@ -58,6 +59,7 @@ REQUEST_MESSAGES = {
                                        b'\x00\x00*',
     MessageType.GetExceptionMessage: b'MRSI\x00\x00\x00\x01\x00\x00\x00\x07\x00\x00\x00\x14\x00'
                                      b'\x00\x00*',
+    MessageType.KeepAlive: b'MRSI\x00\x00\x00\x01\x00\x00\x00\t\x00\x00\x00\x10',
 }
 
 RESPONSE_MESSAGES = {
@@ -74,7 +76,8 @@ RESPONSE_MESSAGES = {
     MessageType.GetExceptionMessage: b'MRSI\x00\x00\x00\x01\x00\x00\x00\x07\x00\x00\x00%\x00\x00'
                                      b'\x00\x11exception message',
     MessageType.FAILURE: b'MRSI\x00\x00\x00\x01\x00\x00\x00\x08\x00\x00\x00(\x00\x00\x00'
-                         b'\x14something went wrong'
+                         b'\x14something went wrong',
+    MessageType.KeepAlive: b'MRSI\x00\x00\x00\x01\x00\x00\x00\t\x00\x00\x00\x10',
 }
 
 RESULT_MESSAGES = {

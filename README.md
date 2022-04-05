@@ -87,19 +87,19 @@ recommended that you first test this in simulation before attempting to control 
 usage: mirai-dev-server [-h] --robot-file ROBOT_FILE
                         [--robot-address ROBOT_ADDRESS]
                         [--server-address SERVER_ADDRESS] [--always-fail]
+                        [--keepalive KEEPALIVE]
 
 optional arguments:
   -h, --help            show this help message and exit
   --robot-file ROBOT_FILE
-                        File where the sdk robot implementation can be loaded. 
-                        eg: './examples/cartesian_velocity_robot.py' (default: None)
+                        File where the sdk robot implementation can be loaded. eg: './examples/cartesian_velocity_robot.py' (default: None)
   --robot-address ROBOT_ADDRESS
-                        Address where the mirai dev server can expect to find the robot,
-                        for motion streaming. (default: localhost)
+                        Address where the mirai dev server can expect to find the robot, for motion streaming. (default: localhost)
   --server-address SERVER_ADDRESS
                         Address that the mirai dev server should listen on. (default: 0.0.0.0)
-  --always-fail         Cause the dev server to respond to every request with a failure message.
-                        (default: False)
+  --always-fail         Cause the dev server to respond to every request with a failure message. (default: False)
+  --keepalive KEEPALIVE
+                        Keep idle client connections for KEEPALIVE seconds before dropping. (default: 60)
 
 Usage example:
 # mirai-dev-server --robot-file examples/cartesian_velocity_robot.py
@@ -117,19 +117,19 @@ robot at the configured address, and will run through an approximation of a full
 If your sdk robot has been properly implemented, this should not produce any motion. It is strongly
 recommended that you first test this in simulation before attempting to control real hardware.
 ```shell
-usage: mirai-dev-client [-h] [--server-address SERVER_ADDRESS]
-                        {GetBoxMetadata,GetTrainedSkills,ExecuteSkill,PrepareSkillAsync,GetResult,
-                         GetLastEndstateValues,GetExceptionMessage}
+usage: mirai-dev-client [-h] [--server-address SERVER_ADDRESS] [--count COUNT]
+                        [--period PERIOD]
+                        {GetBoxMetadata,GetTrainedSkills,ExecuteSkill,PrepareSkillAsync,GetResult,GetLastEndstateValues,GetExceptionMessage,KeepAlive}
 
 positional arguments:
-  {GetBoxMetadata,GetTrainedSkills,ExecuteSkill,PrepareSkillAsync,GetResult,GetLastEndstateValues,
-   GetExceptionMessage}
+  {GetBoxMetadata,GetTrainedSkills,ExecuteSkill,PrepareSkillAsync,GetResult,GetLastEndstateValues,GetExceptionMessage,KeepAlive}
 
 optional arguments:
   -h, --help            show this help message and exit
   --server-address SERVER_ADDRESS
-                        Hostname or IP address where the mirai dev server is running. 
-                        (default: localhost)
+                        Hostname or IP address where the mirai dev server is running. (default: localhost)
+  --count COUNT         Send the command COUNT times, reusing the connection. (default: 1)
+  --period PERIOD       Wait PERIOD seconds between sent messages. (default: 1)
 
 Usage example:
 # mirai-dev-client GetBoxMetadata
