@@ -290,6 +290,25 @@ class RobotInterface(ABC):
         """
         return 50.
 
+    def get_sensitivity_range(self) -> dict:
+        """
+        Returns a dict in this form:
+            {
+                "force": (float, float),
+                "torque": (float, float),
+            }
+
+        The float pairs are (min, max), and they control unit-less sensitivity parameters for force
+        and torque response in the mirai control loop.
+
+        Default values have been chosen, to suit currently supported platforms.
+        Override as appropriate.
+        """
+        return {
+            "force": (0.1, 0.7),
+            "torque": (0.06, 0.22),
+        }
+
 
 class CartesianPoseRobot(RobotInterface):
     """
