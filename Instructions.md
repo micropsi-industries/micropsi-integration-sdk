@@ -47,8 +47,11 @@ Once a successful validation of the Robot Implementation has been achieved, a fu
 
 The basic structure of a Sandbox development setup is this:
 
-[image]
-
+```mermaid
+flowchart TD
+          SANDBOX[MIRAI Sandbox] -->|Robot ABC| IMPLEMENTATION[Robot Implementation]
+          IMPLEMENTATION -->|Platform-specific real-time communication protocol| ROBOT[Physical Robot]
+```
 The Robot Implementation essentially functions as glue code between Python method calls made to the methods defined in the JointPositionRobot ABC and the native real time protocol the robot speaks. Depending on the robot platform’s capabilities, some calculations such as inverse kinematics may have to be performed in the Robot Implementation. The MIRAI Sandbox can be transparently replaced with the actual MIRAI system in a subsequent step.
 
 ## Setting up the Environment
