@@ -34,13 +34,13 @@ The software environment needed to develop a Robot Implementation consists of:
 
 A Platform SDK-based development of a Robot Implementation follows a 4-phase implementation process:
 
-1. **Development Setup**
+1. **Development Setup**<br>
 Setting up a Python 3.6 environment with all dependencies provided by the MIRAI Sandbox. Should additional libraries be required, they can be added to the virtualenv, but should be version-pinned and documented and ideally discussed with Micropsi Industries to make sure a successful step 4 (MIRAI product integration) is possible. Additional operating-system level dependencies should be avoided if at all possible, but can of course always be discussed.
-2. **Implementation**
-Implementing all the methods in the JointPositionRobot ABC.
-3. **Sandbox validation**
+2. **Implementation**<br>
+Implementing all the methods in the `JointPositionRobot` ABC.
+3. **Sandbox validation**<br>
 Run all tests provided as part of the MIRAI Sandbox and observe the physical robot’s behavior. If one of the tests fails, or all tests pass, but the robot does not physically behave as expected, go back to step 2. The MIRAI Sandbox is part of the Integration SDK and is essentially a lightweight “mock” MIRAI, behaving towards the Robot Implementation exactly like a fully-fledged MIRAI system would, but validating and profiling the Robot Implementation.
-4. **MIRAI Integration**
+4. **MIRAI Integration**<br>
 Once a successful validation of the Robot Implementation has been achieved, a full product integration can be performed. This will be done as a joint effort between Integration SDK users and Micropsi Industries engineers.
 
 ## Architecture Overview and Definitions
@@ -52,15 +52,15 @@ flowchart TD
           SANDBOX[MIRAI Sandbox] -->|Robot ABC| IMPLEMENTATION[Robot Implementation]
           IMPLEMENTATION -->|Platform-specific real-time communication protocol| ROBOT[Physical Robot]
 ```
-The Robot Implementation essentially functions as glue code between Python method calls made to the methods defined in the JointPositionRobot ABC and the native real time protocol the robot speaks. Depending on the robot platform’s capabilities, some calculations such as inverse kinematics may have to be performed in the Robot Implementation. The MIRAI Sandbox can be transparently replaced with the actual MIRAI system in a subsequent step.
+The Robot Implementation essentially functions as glue code between Python method calls made to the methods defined in the `JointPositionRobot` ABC and the native real time protocol the robot speaks. Depending on the robot platform’s capabilities, some calculations such as inverse kinematics may have to be performed in the Robot Implementation. The MIRAI Sandbox can be transparently replaced with the actual MIRAI system in a subsequent step.
 
 ## Setting up the Environment
 
 1. Install Python 3.6
-2. pip install micropsi-integration-sdk
+2. `pip install micropsi-integration-sdk`
 3. Create a directory in which your implementation will live and cd to that directory
-4. wget https://raw.githubusercontent.com/micropsi-industries/micropsi-integration-sdk/0.0.5/examples/myrobot/__init__.py
-5. (Rename and) edit myrobot.py and start working on the implementation.
+4. `wget https://raw.githubusercontent.com/micropsi-industries/micropsi-integration-sdk/0.0.5/examples/myrobot/__init__.py`
+5. (Rename and) edit `myrobot.py` and start working on the implementation.
 
 ## Interface Documentation
 
