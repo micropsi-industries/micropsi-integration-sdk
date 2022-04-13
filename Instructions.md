@@ -82,14 +82,13 @@ The sandbox uses very defensive default settings. It is good practice to start w
 
 |Parameter|Explanation|
 |---|---|
-| -r --robot | Name of the robot model to pass to the implementation for cases in which an implementation supports multiple models. Defaults to the only model if only a single model is supported or to the first model if multiple models are supported.|
-| -ip --ip | The IP address to be passed to the implementation. Defaults to 192.168.100.100 |
-| -f --frequency  | The control loop frequency that the sandbox or MIRAI should try to achieve in Hz. The sandbox will try to update its information on the robot pose at this frequency and send target pose updates at this frequency. Defaults to 20Hz.|
-| -s --speed  | Speed at which the robot TCP should move when performing the validation movement in meters/s. Defaults to 0.05m/s.|
-| -d --dimension | Asks the sandbox to perform the validation movement in the given number of dimensions. Defaults to 1, the x dimension. Y and Z can be added by specifying 2 or 3 as a value. Rotation validation movements are not supported by the current version of the sandbox, but will be in the future.|
-| -l --length | Distance the TCP should travel in each dimension when performing the validation movement in meters. Defaults to 0.05cm.|
-| -j –-joint_tolerance | Accuracy expectation for the joint position validation performed by the sandbox. The sandbox sends motion commands to the implementation and expects the robot to faithfully execute these commands. The joint tolerance (in radians) defines the maximum allowed deviation between the reported joint positions and the expected joint positions. Defaults to 0.1|
-| -t –-tcp_tolerance  | Accuracy expectation for the tcp position validation performed by the sandbox. The sandbox sends motion commands to the implementation and expects the robot to faithfully execute these commands. The tcp tolerance (in meters) defines the maximum allowed deviation between the reported tcp position and the expected tcp position. Defaults to 0.01m|
-| -v --verbose  | Specifying –v will cause the sandbox to print full stack traces instead of just error messages when exceptions are caught originating inside the implementation.|
+| `-r`, `--robot` | Name of the robot model to pass to the implementation for cases in which an implementation supports multiple models. Defaults to the only model if only a single model is supported or to the first model if multiple models are supported.|
+| `-ip`, `--ip` | The IP address to be passed to the implementation. Defaults to 192.168.100.100 |
+| `-f`, `--frequency`  | The control loop frequency that the sandbox or MIRAI should try to achieve in Hz. The sandbox will try to update its information on the robot pose at this frequency and send target pose updates at this frequency. Defaults to 20Hz.|
+| `-s`, `--speed`  | Speed at which the robot TCP should move when performing the validation movement in meters/s. Defaults to 0.05m/s.|
+| `-d`, `--dimension` | Asks the sandbox to perform the validation movement in the given number of dimensions. Defaults to 1, the x dimension. Y and Z can be added by specifying 2 or 3 as a value. Rotation validation movements are not supported by the current version of the sandbox, but will be in the future.|
+| `-l`, `--length` | Distance the TCP should travel in each dimension when performing the validation movement in meters. Defaults to 0.05cm.|
+| `-j`, `–-joint_tolerance` | Accuracy expectation for the joint position validation performed by the sandbox. The sandbox sends motion commands to the implementation and expects the robot to faithfully execute these commands. The joint tolerance (in radians) defines the maximum allowed deviation between the reported joint positions and the expected joint positions. Defaults to 0.1|
+| `-t`, `–-tcp_tolerance` | Accuracy expectation for the tcp position validation performed by the sandbox. The sandbox sends motion commands to the implementation and expects the robot to faithfully execute these commands. The tcp tolerance (in meters) defines the maximum allowed deviation between the reported tcp position and the expected tcp position. Defaults to 0.01m|
+| `-v`, `--verbose` | Specifying –v will cause the sandbox to print full stack traces instead of just error messages when exceptions are caught originating inside the implementation.|
 
-Document date: Aug 16th 2021
