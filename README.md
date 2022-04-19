@@ -1,5 +1,8 @@
 # Micropsi Industries Integration SDK
-Package for implementing and testing robots to be integrated with Mirai
+Package for implementing and testing robots to be integrated with Mirai.
+A brief introduction and command reference can be found here.
+
+For more detailed documentation, see [Instructions.md](Instructions.md)
 
 ## Sections:
 - [Installation](#installation)
@@ -81,8 +84,10 @@ It accepts commands as documented in the binary skill api.
 **CAUTION**
 When it receives the `ExecuteSkill` command, this tool will attempt to communicate with a robot
 at the configured address, and will run through an approximation of a full skill execution.
-If your sdk robot has been properly implemented, this should not produce any motion. It is strongly
-recommended that you first test this in simulation before attempting to control real hardware.
+If your sdk robot has been properly implemented, this should produce only miniscule motion, however
+this cannot be guaranteed.
+It is strongly recommended that you first test this in simulation before attempting to interface 
+with real hardware.
 ```shell
 usage: mirai-dev-server [-h] --robot-file ROBOT_FILE
                         [--robot-address ROBOT_ADDRESS]
