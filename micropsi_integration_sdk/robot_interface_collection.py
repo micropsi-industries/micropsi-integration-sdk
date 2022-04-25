@@ -20,6 +20,43 @@ class RobotInterfaceCollection:
     def get_robot_interface(self, robot_model):
         return self.__robots[robot_model]
 
+    def register_interface(self, interface_class: type) -> bool:
+        """
+        Given a class definition fully satisfying the RobotInterface ABC, register it as the 
+        constructor for each of its supported robot models.
+        Args:
+            interface_class (type): class definition, fully implementing RobotInterface.
+
+        Returns:
+            bool: True if registered, False otherwise.
+        """
+        # Ignore anything that's not a class definition
+        if not isinstance(interface_class, type):
+            return False
+
+        # Ignore anything that's not an implementation of RobotInterface
+        if not issubclass(interface_class, robot_sdk.RobotInterface):
+            return False
+
+        # Loudly ignore anything that's not fully implemented. This could indicate that some
+        # abstract methods have been missed.
+        if inspect.isabstract(interface_class):
+            logger.info("%s is not fully implemented, skipping.", interface_class.__qualname__)
+            return False
+
+        # If we got this far, we have a full implementation of a RobotInterface
+        for robot_model in interface_class.get_supported_models():
+            logger.info("Found SDK robot: %s", robot_model)
+            self.__robots[robot_model] = interface_class
+        return True
+
+    def unregister_interface(self, interface_class: type):
+        """
+        Remove any robot models from the collection which are registered against the provided
+        interface class.
+        """
+        self.__robots = {k: v for k, v in self.__robots.items() if v is not interface_class}
+
     def load_interface(self, filepath):
         """
         Given a path to a python module implementing a non-abstract robot class inheriting from the
@@ -40,25 +77,8 @@ class RobotInterfaceCollection:
             spec = importlib.util.spec_from_file_location(name=module_id, location=str(filepath))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        for name, obj in inspect.getmembers(module):
-            # Ignore anything that's not a class definition
-            if not isinstance(obj, type):
-                continue
-
-            # Ignore anything that's not an implementation of RobotInterface
-            if not issubclass(obj, robot_sdk.RobotInterface):
-                continue
-
-            # Loudly ignore anything that's not fully implemented. This could indicate that some
-            # abstract methods have been missed.
-            if inspect.isabstract(obj):
-                logger.info("%s is not fully implemented, skipping.", name)
-                continue
-
-            # If we got this far, we have a full implementation of a RobotInterface
-            for robot_model in obj.get_supported_models():
-                logger.info("Found SDK robot: %s", robot_model)
-                self.__robots[robot_model] = obj
+        for _, obj in inspect.getmembers(module):
+            self.register_interface(obj)
 
     def load_interface_directory(self, path):
         """
