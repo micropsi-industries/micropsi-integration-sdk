@@ -50,12 +50,8 @@ class MyJointSpeedRobot(JointSpeedRobot):
         self.__ready_for_control = False
 
     def get_hardware_state(self) -> Optional[HardwareState]:
-        joint_positions = np.copy(self.__joint_positions)
         state = HardwareState(
-            joint_positions=joint_positions,
-            joint_speeds=None,
-            joint_temperatures=None,
-            raw_wrench=None,
+            joint_positions=np.copy(self.__joint_positions),
         )
         LOG.debug("State: %s", state)
         return state

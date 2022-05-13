@@ -52,11 +52,8 @@ class MyCartesianVelocityRobot(CartesianVelocityRobot):
     def get_hardware_state(self) -> Optional[HardwareState]:
         state = HardwareState(
             joint_positions=np.copy(self.__joint_positions),
-            joint_speeds=None,
-            raw_wrench=None,
-            joint_temperatures=None
         )
-        LOG.debug("Hardware state: %s", state)
+        LOG.debug("State: %s", state)
         return state
 
     def clear_cached_hardware_state(self) -> None:
