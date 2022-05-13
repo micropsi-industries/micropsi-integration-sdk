@@ -9,7 +9,9 @@ HardwareState = namedtuple("HardwareState", (
     "joint_speeds",
     "joint_temperatures",
     "raw_wrench",
+    "end_effector_pose",
 ))
+HardwareState.__new__.__defaults__ = (None,) * len(HardwareState._fields)
 
 
 class RobotInterface(ABC):

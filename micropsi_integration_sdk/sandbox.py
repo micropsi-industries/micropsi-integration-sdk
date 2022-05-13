@@ -93,15 +93,17 @@ class RobotCommunication(threading.Thread):
         self.__step_count += 1
         self.__state = self.get_state()
         if self.current_pose is None:
-            self.__current_pose = self.__interface.forward_kinematics(
-                joint_positions=self.state.joint_positions)
+            self.__current_pose = (
+                self.state.end_effector_pose if self.state.end_effector_pose is not None
+                else self.__interface.forward_kinematics(joint_positions=self.state.joint_positions)
+            )
         self.__state_received.set()
 
         if self.__goal_pose is None:
             # nowhere to go
             return
 
-        if self.__at_goal(joint_positions=self.state.joint_positions):
+        if self.__at_goal():
             self.__goal_reached.set()
             return
 
@@ -166,13 +168,12 @@ class RobotCommunication(threading.Thread):
         self.__goal_pose = self.current_pose @ action
         self.wait_for_state()
 
-    def __at_goal(self, *, joint_positions: np.ndarray) -> bool:
+    def __at_goal(self) -> bool:
         goal_pose = np.copy(self.__goal_pose)
-        real_current_pose = self.__interface.forward_kinematics(joint_positions=joint_positions)
-        current_translate = real_current_pose[:3, 3]
+        current_translate = self.current_pose[:3, 3]
         goal_translate = goal_pose[:3, 3]
         linear_distance = np.linalg.norm(goal_translate - current_translate)
-        current_rotate = Quaternion(matrix=real_current_pose[:3, :3])
+        current_rotate = Quaternion(matrix=self.current_pose[:3, :3])
         goal_rotate = Quaternion(matrix=goal_pose[:3, :3])
         angular_distance = (current_rotate.conjugate * goal_rotate).radians
         LOG.debug("linear distance: %.2f", linear_distance)
