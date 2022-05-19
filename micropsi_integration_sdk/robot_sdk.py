@@ -446,3 +446,16 @@ class JointSpeedRobot(RobotInterface):
         frequency in order to be ready for the next instruction.
         """
         raise NotImplementedError
+
+    def use_recovery_locking(self) -> bool:
+        """
+        JointSpeedRobots tend to accumulate cartesian pose error.
+        This becomes apparent when motion in certain axes is locked, because the robot will tend to
+        drift away from the allowed pose into the locked direction and is generally unable to
+        recover.
+        Mirai can apply a recovery velocity to more closely align with locked axes, but this
+        reduces the stepping frequency achievable by the controller, and so is disabled by default.
+
+        Override this function to return True, if the recovery locking system should be enabled.
+        """
+        return False
