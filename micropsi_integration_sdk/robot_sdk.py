@@ -274,7 +274,8 @@ class RobotInterface(ABC):
         """
         raise NotImplementedError
 
-    def has_internal_ft_sensor(self) -> bool:
+    @staticmethod
+    def has_internal_ft_sensor() -> bool:
         """
         Optional, override as appropriate.
 
