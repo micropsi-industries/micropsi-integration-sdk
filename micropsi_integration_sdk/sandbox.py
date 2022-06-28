@@ -254,8 +254,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def main(args):
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     path = args.path
     robot_model = args.model
@@ -370,4 +369,4 @@ def preflight_checks(*, interface, controller):
 
 
 if __name__ == '__main__':
-    main()
+    main(parse_args())
