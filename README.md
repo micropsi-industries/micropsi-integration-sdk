@@ -2,7 +2,9 @@
 Package for implementing and testing robots to be integrated with Mirai.
 A brief introduction and command reference can be found here.
 
-For more detailed documentation, see [Instructions.md](Instructions.md)
+For more detailed documentation, see [instructions.md](instructions.md)
+
+For Skill API reference, see [skill_api.md](skill_api.md)
 
 ## Sections:
 - [Installation](#installation)
