@@ -7,10 +7,17 @@ import time
 
 from micropsi_integration_sdk.dev_schema import (
     MessageType,
-    REQUEST_MESSAGES,
+    REQUEST_MESSAGES_V1,
+    REQUEST_MESSAGES_V2,
 )
 
 logger = logging.getLogger("mirai-dev-client")
+
+
+REQUEST_MESSAGES = {
+    1: REQUEST_MESSAGES_V1,
+    2: REQUEST_MESSAGES_V2,
+}
 
 
 class ArgsFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -30,6 +37,8 @@ def parse_args():
                         help="Send the command COUNT times, reusing the connection.")
     parser.add_argument("--period", type=float, default=1,
                         help="Wait PERIOD seconds between sent messages.")
+    parser.add_argument("--api-version", type=int, default=1, choices=REQUEST_MESSAGES.keys(),
+                        help="Format messages for the given mirai binary api version.")
     parser.add_argument("command", choices=[c.name for c in iter(MessageType)
                                             if c != MessageType.FAILURE])
     return parser.parse_args()
@@ -41,7 +50,8 @@ def main():
     server_address = args.server_address
     command = args.command
     command = getattr(MessageType, command)
-    message = REQUEST_MESSAGES[command]
+    request_messages = REQUEST_MESSAGES[args.api_version]
+    message = request_messages[command]
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(1)
         sock.connect((server_address, 6599))

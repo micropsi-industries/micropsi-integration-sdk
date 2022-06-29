@@ -14,8 +14,10 @@ from micropsi_integration_sdk.dev_schema import (
     MessageType,
     Results,
     unpack_header,
-    RESULT_MESSAGES,
-    RESPONSE_MESSAGES,
+    RESULT_MESSAGES_V1,
+    RESPONSE_MESSAGES_V1,
+    RESULT_MESSAGES_V2,
+    RESPONSE_MESSAGES_V2,
 )
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 from micropsi_integration_sdk.robot_sdk import (
@@ -25,6 +27,18 @@ from micropsi_integration_sdk.robot_sdk import (
 )
 
 logger = logging.getLogger("server")
+
+
+RESPONSE_MESSAGES = {
+    1: RESPONSE_MESSAGES_V1,
+    2: RESPONSE_MESSAGES_V2,
+}
+
+
+RESULT_MESSAGES = {
+    1: RESULT_MESSAGES_V1,
+    2: RESULT_MESSAGES_V2,
+}
 
 
 class ArgsFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -148,32 +162,34 @@ class Server(threading.Thread):
             raise ClientDisconnected
         logger.info("received: %s", message)
         mark, api_version, message_type, message_bytes = unpack_header(message)
+        response_messages = RESPONSE_MESSAGES[api_version]
+        result_messages = RESULT_MESSAGES[api_version]
         if self.always_fail:
-            response = RESPONSE_MESSAGES[MessageType.FAILURE]
+            response = response_messages[MessageType.FAILURE]
         elif message_type == MessageType.ExecuteSkill:
             self.result = Results.NoResult
             try:
                 self.future = self.start_skill_execution()
             except Exception as e:
                 logger.error(e)
-                response = RESPONSE_MESSAGES[MessageType.FAILURE]
+                response = response_messages[MessageType.FAILURE]
             else:
-                response = RESPONSE_MESSAGES[MessageType.ExecuteSkill]
+                response = response_messages[MessageType.ExecuteSkill]
         elif message_type == MessageType.GetResult:
             if self.future is None or not self.future.done():
-                response = RESULT_MESSAGES[self.result]
+                response = result_messages[self.result]
             else:
                 try:
                     self.result = self.future.result()
                 except Exception as e:
                     logger.error(e)
-                    response = RESPONSE_MESSAGES[MessageType.FAILURE]
+                    response = response_messages[MessageType.FAILURE]
                 else:
-                    response = RESULT_MESSAGES[self.result]
+                    response = result_messages[self.result]
                 finally:
                     self.future = None
         else:
-            response = RESPONSE_MESSAGES[message_type]
+            response = response_messages[message_type]
         return response
 
     def start_skill_execution(self) -> Future:

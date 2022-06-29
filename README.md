@@ -2,7 +2,9 @@
 Package for implementing and testing robots to be integrated with Mirai.
 A brief introduction and command reference can be found here.
 
-For more detailed documentation, see [Instructions.md](Instructions.md)
+For more detailed documentation, see [instructions.md](instructions.md)
+
+For Skill API reference, see [skill_api.md](skill_api.md)
 
 ## Sections:
 - [Installation](#installation)
@@ -123,7 +125,7 @@ If your sdk robot has been properly implemented, this should not produce any mot
 recommended that you first test this in simulation before attempting to control real hardware.
 ```shell
 usage: mirai-dev-client [-h] [--server-address SERVER_ADDRESS] [--count COUNT]
-                        [--period PERIOD]
+                        [--period PERIOD] [--api-version {1,2}]
                         {GetBoxMetadata,GetTrainedSkills,ExecuteSkill,PrepareSkillAsync,GetResult,GetLastEndstateValues,GetExceptionMessage,KeepAlive}
 
 positional arguments:
@@ -135,6 +137,7 @@ optional arguments:
                         Hostname or IP address where the mirai dev server is running. (default: localhost)
   --count COUNT         Send the command COUNT times, reusing the connection. (default: 1)
   --period PERIOD       Wait PERIOD seconds between sent messages. (default: 1)
+  --api-version {1,2}   Format messages for the given mirai binary api version. (default: 1)
 
 Usage example:
 # mirai-dev-client GetBoxMetadata
