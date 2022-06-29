@@ -27,6 +27,9 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=["numpy", "pyquaternion"],
+    extras_require={
+        'test': ["pytest"],
+    },
     entry_points={
         "console_scripts": [
             "mirai-sandbox=micropsi_integration_sdk.sandbox:main",
