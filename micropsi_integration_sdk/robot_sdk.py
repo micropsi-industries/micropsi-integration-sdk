@@ -275,6 +275,16 @@ class RobotInterface(ABC):
         raise NotImplementedError
 
     @staticmethod
+    def get_wait_for_receive_timeout() -> float:
+        """
+        Optional, override as appropriate.
+
+        Return how long the mirai runtime should wait for receiving hardware state readings from the
+        robot.
+        """
+        return 1.
+        
+    @staticmethod
     def has_internal_ft_sensor() -> bool:
         """
         Optional, override as appropriate.
