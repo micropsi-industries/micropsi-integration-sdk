@@ -312,6 +312,20 @@ class RobotInterface(ABC):
             "torque": (0.06, 0.22),
         }
 
+    @staticmethod
+    def get_slowdown_steps() -> int:
+        """
+        Optional, override as appropriate.
+
+        Slowdown_steps is a parameter that defines how many steps the robot should need to reach
+        the goal position. Using this parameter, the robot asymptotically slows down near the goal.
+        This is to ensure a smooth approach without overshooting the goal position.
+
+        Slowdown_steps needs to be adjusted according to a specific robot controller (based on its
+        acceleration and decelaration values). The default value is set to be 8.
+        """
+        return 8
+
 
 class CartesianPoseRobot(RobotInterface):
     """
