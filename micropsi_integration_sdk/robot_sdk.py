@@ -283,7 +283,7 @@ class RobotInterface(ABC):
         robot.
         """
         return 1.
-        
+
     @staticmethod
     def has_internal_ft_sensor() -> bool:
         """
@@ -323,7 +323,7 @@ class RobotInterface(ABC):
         }
 
     @staticmethod
-    def get_slowdown_steps() -> int:
+    def get_slowdown_steps_in_seconds() -> float:
         """
         Optional, override as appropriate.
 
@@ -332,9 +332,12 @@ class RobotInterface(ABC):
         This is to ensure a smooth approach without overshooting the goal position.
 
         Slowdown_steps needs to be adjusted according to a specific robot controller (based on its
-        acceleration and decelaration values). The default value is set to be 8.
+        acceleration and decelaration values). Since the actual step length depends on the stepping
+        frequency that can be adjusted later, the value is exposed in seconds.
+
+        The default value is (8 / 15.15): (default slowdown_steps / default runtime frequency).
         """
-        return 8
+        return (8 / 15.15)
 
 
 class CartesianPoseRobot(RobotInterface):
