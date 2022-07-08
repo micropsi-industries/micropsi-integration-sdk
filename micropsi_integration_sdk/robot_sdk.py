@@ -322,8 +322,7 @@ class RobotInterface(ABC):
             "torque": (0.06, 0.22),
         }
 
-    @staticmethod
-    def get_slowdown_steps_in_seconds() -> float:
+    def get_slowdown_steps_in_seconds(self) -> float:
         """
         Optional, override as appropriate.
 
@@ -335,9 +334,9 @@ class RobotInterface(ABC):
         acceleration and decelaration values). Since the actual step length depends on the stepping
         frequency that can be adjusted later, the value is exposed in seconds.
 
-        The default value is (8 / 15.15): (default slowdown_steps / default runtime frequency).
+        The default value is (11 / 15.15): (default slowdown_steps / default runtime frequency).
         """
-        return (8 / 15.15)
+        return (11 / 15.15)
 
     
     def get_virtual_dynamics_parameters(self) -> dict:
