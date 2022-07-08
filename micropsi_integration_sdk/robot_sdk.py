@@ -339,6 +339,26 @@ class RobotInterface(ABC):
         """
         return (8 / 15.15)
 
+    
+    def get_virtual_dynamics_parameters(self) -> dict:
+        """
+        Optional, override as appropriate.
+
+        Virtual dynamics parameters are used in calculating guiding motion inputs to translate FT
+        sensor readings into TCP velocity. Returns:
+            {
+                "mass": float
+                "moment": float
+            }
+
+        Mass is used to calculate acceleration for translational motion: Force readings / mass
+        Moment is used to calculate acceleration for rotational motion: Torque readings / moment
+        """
+        return {
+            "mass": 6.0,
+            "moment": 0.04,
+        }
+
 
 class CartesianPoseRobot(RobotInterface):
     """
