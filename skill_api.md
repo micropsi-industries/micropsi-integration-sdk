@@ -343,6 +343,7 @@ request = struct.pack(
 * `2`: Skill execution ended by force-based endstate
 * `3`: Skill execution ended by visual endstate
 * `4`: Skill execution ended by timeout
+* `5`: Skill execution ended by position-based endstate
 * `-1`: an exception occured during skill execution. The client can retrieve the exception message with a `get_exception_message` request:
 
 ```python
