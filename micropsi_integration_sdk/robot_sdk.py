@@ -303,6 +303,17 @@ class RobotInterface(ABC):
         """
         return 50.
 
+        def get_home_tolerance(self) -> float:
+        """ Optional, override as appropriate.
+
+            When the robot is sent home, the home tolerance defines how much the sum of
+            all current joint positions can differ from the sum of all joint position of
+            the configured home position for the position to be considered "home". The
+            unit for the joints is the same unit being returned by get_hardware_state.
+            Default is 0.1.
+            """
+            return 0.1
+
     def get_sensitivity_range(self) -> dict:
         """
         Returns a dict in this form:
