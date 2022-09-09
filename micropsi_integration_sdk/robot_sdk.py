@@ -155,10 +155,15 @@ class RobotInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def prepare_for_control(self) -> None:
+    def prepare_for_control(self, remote_operation=False) -> None:
         """
         Perform initialization steps necessary to make the robot ready to start receiving
         joint positions in realtime.
+
+        Args:
+            remote_operation: True if preparation is requested by a remote system
+                (PLC, robot program, etc), usually indicating a production context.
+                False when requested directly by Mirai during training.
         """
         raise NotImplementedError
 
