@@ -415,7 +415,7 @@ class CartesianVelocityRobot(RobotInterface):
     ####################
 
     @abstractmethod
-    def send_velocity(self, *, velocity: np.ndarray, step_count: int) -> None:
+    def send_velocity(self, *, velocity: np.ndarray, step_count: int, action_frame: str) -> None:
         """
         Send the goal end-effector velocity to the robot for immediate execution.
         The goal velocity will be provided as a 6D array relative to the base frame of the
