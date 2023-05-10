@@ -73,12 +73,14 @@ class RobotInterfaceCollection:
             spec = importlib.util.spec_from_file_location(
                 name=module_id, location=str(filepath / '__init__.py'),
                 submodule_search_locations=[str(filepath)])
-        else:
+        elif filepath.suffix == ".py":
             spec = importlib.util.spec_from_file_location(name=module_id, location=str(filepath))
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        for _, obj in inspect.getmembers(module):
-            self.register_interface(obj)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            for _, obj in inspect.getmembers(module):
+                self.register_interface(obj)            
+        else:
+            logger.info("Skipping non-python file %s" % filepath)
 
     def load_interface_directory(self, path):
         """
