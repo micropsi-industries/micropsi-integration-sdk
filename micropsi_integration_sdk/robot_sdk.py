@@ -172,6 +172,14 @@ class RobotInterface(ABC):
         """
         raise NotImplementedError
 
+    def get_not_ready_for_control_reason(self) -> str:
+        """
+        If the MicroPsi runtime has called prepare_for_control multiple times and is_ready_for_control
+        continues to report False, this will be called and asked to provide a message that will be
+        shown to the user to allow them to solve the issue
+        """
+        return ""
+
     @abstractmethod
     def take_control(self) -> None:
         """
