@@ -222,7 +222,7 @@ request = struct.pack(
 
 ```python
 import struct
-response = b'MRSI\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x18\x00\x00\x00{\x00\x00\x00\x02'
+response = b'MRSI\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x02'
 mark, version, msg_type, msg_size = struct.unpack('!4sIII', response[0:16])  # first 16 bytes
 content = response[16:]  # remaining bytes
 box_id, number_of_skills = struct.unpack('!II', content)
