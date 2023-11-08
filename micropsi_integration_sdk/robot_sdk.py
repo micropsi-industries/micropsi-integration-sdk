@@ -350,7 +350,6 @@ class RobotInterface(ABC):
         """
         return (11 / 15.15)
 
-    
     def get_virtual_dynamics_parameters(self) -> dict:
         """
         Optional, override as appropriate.
@@ -369,6 +368,23 @@ class RobotInterface(ABC):
             "mass": 6.0,
             "moment": 0.04,
         }
+
+    def get_guiding_filter_strength(self) -> float:
+        """
+        Optional, override as appropriate.
+
+        Guiding filter strength is used to enable and smooth guiding motion inputs, i.e., FT
+        sensor readings. It takes values between 0 and 1. The higher the value is the more smoothing
+        applied on the readings to avoid a sudden increase on the forces applied. This, in the end,
+        avoids sudden jumps on the robot caused by sudden changes in commanded velocities, which are
+        calculated from the FT sensor readings.
+
+        Additionally, the filter also subtracts the guiding threshold value (the value to beat to
+        start guiding) from the readings. With that, we can now guide the robot with low velocities.
+
+        By default, this is disabled.
+        """
+        return 0.0
 
 
 class CartesianPoseRobot(RobotInterface):
