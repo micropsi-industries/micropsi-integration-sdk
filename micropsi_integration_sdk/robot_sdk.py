@@ -386,6 +386,29 @@ class RobotInterface(ABC):
         """
         return 0.0
 
+    def get_ra_acceleration_values(self) -> dict:
+        """
+        Optional, override as appropriate.
+
+        This function returns a dict of maximum acceleration values for the Recording Assistant (RA).
+        RA plans a trajectory and executes motions on the robot, respecting these maximum acceleration
+        values set. The values are in m/s^2 and deg/s^2 for linear and angular acceleration
+        respectively. The values are used to limit the maximum linear and angular velocity changes
+        between two steps of the controller. By doing so, we avoid sudden shifts in the robot's
+        velocity, which could cause the robot to dangerously jerk and potentially overshoot the target
+        positions. Hence, the values are specific to the robot's acceleration and deceleration
+        capabilities.
+
+        Default values below are tested to function well with URs (UR3, UR5, UR10) and Fanucs
+        (CRX-10iA/L, LR Mate 200iD/7L).
+        """
+        return {
+            "max_acceleration_cartesian": 0.01,
+            "max_acceleration_degrees": 10,
+            "max_deceleration_cartesian": 0.02,
+            "max_deceleration_degrees": 60,
+        }
+
 
 class CartesianPoseRobot(RobotInterface):
     """
