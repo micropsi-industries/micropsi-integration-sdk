@@ -409,6 +409,17 @@ class RobotInterface(ABC):
             "max_deceleration_degrees": 60,
         }
 
+    def kill_all_threads(self) -> None:
+        """
+        Optional, override as appropriate.
+
+        While your robot implementation might keep background threads alive between connect
+        and disconnect calls, this is the moment where all background activity needs to terminate.
+        Implement this method if you have threads or daemons started that stay alive after
+        disconnect has been called. Please terminate them via this method.
+        """
+        pass
+
 
 class CartesianPoseRobot(RobotInterface):
     """
