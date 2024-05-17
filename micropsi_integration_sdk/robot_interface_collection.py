@@ -22,7 +22,7 @@ class RobotInterfaceCollection:
 
     def register_interface(self, interface_class: type) -> bool:
         """
-        Given a class definition fully satisfying the RobotInterface ABC, register it as the 
+        Given a class definition fully satisfying the RobotInterface ABC, register it as the
         constructor for each of its supported robot models.
         Args:
             interface_class (type): class definition, fully implementing RobotInterface.
@@ -78,7 +78,7 @@ class RobotInterfaceCollection:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             for _, obj in inspect.getmembers(module):
-                self.register_interface(obj)            
+                self.register_interface(obj)
         else:
             logger.info("Skipping non-python file %s" % filepath)
 
