@@ -254,8 +254,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def main(args=None):
+    if args is None:
+        args = parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     path = args.path
     robot_model = args.model
