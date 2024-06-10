@@ -14,7 +14,7 @@ TAG="$(git describe --tags)"
 
 # Find or make venv
 PYTHON=".venv/bin/python"
-[[ -f "${PYTHON}" ]] || python3.6 -m venv .venv --prompt $(basename $(pwd))
+[[ -f "${PYTHON}" ]] || python3 -m venv .venv --prompt $(basename $(pwd))
 echo "Python is '${PYTHON}'"
 
 # update build tools

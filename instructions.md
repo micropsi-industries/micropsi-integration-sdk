@@ -6,7 +6,7 @@ The Micropsi Integration SDK enables the development of interfaces between Micro
 AI-driven robot control product MIRAI and robot platforms, with the goal of bringing MIRAI’s on-site
 trainable "hand-eye coordination" to new robots.
 
-This is done by implementing a Python 3.6 class inheriting an interface defined in any of the 
+This is done by implementing a Python 3.10 class inheriting an interface defined in any of the 
 abstract base classes provided in the `robot_sdk`. This implementation, the “Robot Implementation”,
 typically provides the means of communication with the robot (usually a protocol over TCP or UDP)
 and the forward (and sometimes inverse) kinematics of the robot, plus safety checks.
@@ -43,7 +43,7 @@ The software environment needed to develop a Robot Implementation consists of:
 * A development PC. The Integration SDK is cross-platform, however the Mirai production system is
 Linux-based. A Linux or MacOS development environment is therefore recommended, to reduce the
 potential for unwelcome surprises.
-* Python 3.6
+* Python 3.10
 * Pip
 
 ## Implementation Process
@@ -51,7 +51,7 @@ potential for unwelcome surprises.
 A Platform SDK-based development of a Robot Implementation follows a 4-phase implementation process:
 
 1. **Development Setup**<br>
-Set up a Python 3.6 environment with all dependencies provided by the MIRAI Sandbox. Should
+Set up a Python 3.10 environment with all dependencies provided by the MIRAI Sandbox. Should
 additional libraries be required, they can be added to the virtualenv. They should be version-pinned
 and ideally discussed with Micropsi Industries to make sure a successful step 4 (MIRAI product
 integration) is possible. Additional operating-system level dependencies should be avoided,
@@ -87,11 +87,11 @@ replaced with the actual MIRAI system in a subsequent step.
 
 ## Setting up the Environment
 
-1. Install Python 3.6
+1. Install Python 3.10
 2. Clone this repository `git clone git@github.com:micropsi-industries/micropsi-integration-sdk.git`
 3. Enter the directory you just cloned `cd micropsi-integration-sdk`
-4. (recommended) Create and activate a virtual environment `python3.6 -m venv .venv && source .venv/bin/activate`
-5. Install the SDK python package `python3.6 -m pip install .`
+4. (recommended) Create and activate a virtual environment `python3 -m venv .venv && source .venv/bin/activate`
+5. Install the SDK python package `python3 -m pip install .`
 6. Enter the examples directory and investigate the provided examples. Each example extends one of
 the available abstract base classes, and demonstrates a unique way that the Mirai system can
 communicate motion commands to your implementation. At time of writing, the available examples in

@@ -38,6 +38,6 @@ setup(
         ],
     },
     platforms=[get_build_platform()],
-    python_requires=">=3.6, <4",
+    python_requires=">=3.10, <4",
     license="MIT",
 )
