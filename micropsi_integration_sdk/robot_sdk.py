@@ -420,6 +420,24 @@ class RobotInterface(ABC):
         """
         pass
 
+    def prepare_for_cog_estimation(self) -> None:
+        """
+        Optional, override as appropriate.
+
+        Many robots may require a different robot communication state for CoG estimation. Mirai only
+        needs to read the robot state during the CoG and should not send control signals (because the
+        robot is jogged from its teachpendant). We currently achieve this state by enabling all
+        communication interfaces and not letting robot control in various ways on either on the robot
+        side (e.g., by not pressing start button on KUKA) or on the robot's own SDK implementation.
+        This method now allows us to implement required routines to achieve this. We can set our
+        communication or the robot configuration on the robot side in a state that the robot sends
+        its readings to us without needing to engage in robot control and command interface.
+
+        This method is at the moment used for KUKA and the new RSI logic that requires a signal from
+        us to even sends robot state readings to us.
+        """
+        pass
+
 
 class CartesianPoseRobot(RobotInterface):
     """
