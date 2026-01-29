@@ -28,10 +28,8 @@ ACCURACY_MAX = 0.1
 
 MAX_LINEAR_MOVEMENT = 0.1
 
-DEF_LENGTH = 0.05
-MAX_LENGTH = 0.1
-
-DEF_DIMENSION = 1
+DEF_MAX_DISTANCE_TRANSLATION = 0.05  # meters
+DEF_MAX_DISTANCE_DEGREES = 10.0  # degrees
 
 TIMEOUT = 5
 
@@ -233,13 +231,16 @@ def parse_args():
                         help="Angular end-effector speed, radians per second.\n"
                              "Default: {}, Max: {}".format(DEFAULT_EE_SPEED_ANGULAR,
                                                            MAX_EE_SPEED_ANGULAR))
-    parser.add_argument("-d", "--dimension", default=DEF_DIMENSION, type=int,
-                        help="Number of axes to move the robot in.\n"
-                             "Default: {}".format(DEF_DIMENSION))
-    parser.add_argument("-l", "--length", default=DEF_LENGTH, type=float,
-                        help="Length of test movement, meters.\n"
-                             "Default:{}, Max: {}m".format(DEF_LENGTH,
-                                                           MAX_LENGTH))
+    parser.add_argument("--translation-only", action="store_true",
+                        help="Only test translational movements.")
+    parser.add_argument("--rotation-only", action="store_true",
+                        help="Only test rotational movements.")
+    parser.add_argument("--max-distance-translation", default=DEF_MAX_DISTANCE_TRANSLATION, type=float,
+                        help="Maximum distance for translational movements, meters.\n"
+                             "Default: {}".format(DEF_MAX_DISTANCE_TRANSLATION))
+    parser.add_argument("--max-distance-degrees", default=DEF_MAX_DISTANCE_DEGREES, type=float,
+                        help="Maximum distance for rotational movements, degrees.\n"
+                             "Default: {}".format(DEF_MAX_DISTANCE_DEGREES))
     parser.add_argument("-ip", "--ip-address", default=DEFAULT_IP, type=str,
                         help="IP address of the robot.\n"
                              "Default: {}".format(DEFAULT_IP))
@@ -251,30 +252,59 @@ def parse_args():
                              "Default: {} radians".format(DEFAULT_ACC_ANGULAR))
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Enable debug logging.")
+
+    parser.add_argument("-d", "--dimension", type=int, default=None,
+                        help="DEPRECATED: See --translation-only or --rotation-only")
+    parser.add_argument("-l", "--length", type=float, default=None,
+                        help="DEPRECATED: See --max-distance-translation and --max-distance-degrees")
+
     return parser.parse_args()
+
+
+def _check_deprecated_arguments(args):
+    if args.dimension is not None:
+        print(
+            "  --dimension / -d is deprecated.\n"
+            "    Use --translation-only to test only translational movements,\n"
+            "    or --rotation-only to test only rotational movements.\n"
+            "    By default, both translational and rotational movements are tested."
+        )
+
+    if args.length is not None:
+        print(
+            "  --length / -l is deprecated.\n"
+            "    Use --max-distance-translation to set the maximum translation distance (meters),\n"
+            "    and --max-distance-degrees to set the maximum rotational movement distance (degrees)."
+        )
+
+    if args.dimension is not None or args.length is not None:
+        sys.exit(1)
 
 
 def main(args=None):
     if args is None:
         args = parse_args()
+    _check_deprecated_arguments(args)
+
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     path = args.path
     robot_model = args.model
     robot_ip = args.ip_address
 
-    dist = args.length if args.length <= MAX_LINEAR_MOVEMENT else MAX_LINEAR_MOVEMENT
+    translation_only = args.translation_only
+    rotation_only = args.rotation_only
+
+    if translation_only and rotation_only:
+        print("Error: Can't do both --translation-only and --rotation-only")
+        sys.exit(1)
+
+    max_distance_translation = args.max_distance_translation
+    max_distance_degrees = args.max_distance_degrees
+
     tolerance_linear = min(args.tolerance_linear, ACCURACY_MAX)
     tolerance_angular = min(args.tolerance_angular, ACCURACY_MAX)
     speed_limit_linear = min(args.speed_linear, MAX_EE_SPEED)
     speed_limit_angular = min(args.speed_angular, MAX_EE_SPEED_ANGULAR)
-
-    if 0 < args.dimension < 4:
-        dimensions = args.dimension
-    else:
-        LOG.warning("Dimensions out of Range: %d. Currently only <= 3 dimensions, translations in "
-                    "'x', 'y' and 'z' supported. Falling back to 1 dimension movement.",
-                    args.dimension)
-        dimensions = 1
 
     robot_path = toolbox.extract_path(path)
 
@@ -311,13 +341,16 @@ def main(args=None):
         preflight_checks(interface=interface, controller=controller)
 
         with controlled(interface):
-            LOG.info("Moving in %d axes, with distance %.2fm", dimensions, dist)
-            movements = toolbox.generate_actions(dimensions=dimensions, distance=dist)
-            for idx, movement in enumerate(movements):
-                action = np.identity(4)
-                action[:3, 3] = movement
-                LOG.info("Moving to position %d", idx)
-                controller.set_action(action=action)
+            pose_changes, descriptions = toolbox.generate_actions(
+                do_translation=not rotation_only,
+                do_rotation=not translation_only,
+                max_distance_translation=max_distance_translation,
+                max_distance_degrees=max_distance_degrees
+            )
+            total = len(pose_changes)
+            for idx, (pose_change, desc) in enumerate(zip(pose_changes, descriptions)):
+                LOG.info(f"Testing movement {idx + 1}/{total}: {desc}")
+                controller.set_action(action=pose_change)
                 if not controller.wait_for_goal():
                     raise RuntimeError("Timed out while waiting for the robot to achieve the "
                                        "goal.")
