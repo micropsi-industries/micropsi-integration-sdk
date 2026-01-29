@@ -75,6 +75,7 @@ class RobotCommunication(threading.Thread):
         while self.__running:
             try:
                 start = time.perf_counter()
+                self.update_state()
                 self.step()
                 elapsed = time.perf_counter() - start
                 remainder = (1 / self.__frequency) - elapsed
@@ -87,15 +88,16 @@ class RobotCommunication(threading.Thread):
                 self.__goal_pose = None
                 self.__running = False
 
+    def update_state(self):
+        self.__state = self.get_state()
+        self.__current_pose = (
+            self.state.end_effector_pose if self.state.end_effector_pose is not None
+            else self.__interface.forward_kinematics(joint_positions=self.state.joint_positions)
+        )
+        self.__state_received.set()
+
     def step(self):
         self.__step_count += 1
-        self.__state = self.get_state()
-        if self.current_pose is None:
-            self.__current_pose = (
-                self.state.end_effector_pose if self.state.end_effector_pose is not None
-                else self.__interface.forward_kinematics(joint_positions=self.state.joint_positions)
-            )
-        self.__state_received.set()
 
         if self.__goal_pose is None:
             # nowhere to go
@@ -166,9 +168,6 @@ class RobotCommunication(threading.Thread):
         else:
             raise TypeError("Unsupported robot type %s" % type(self.__interface))
 
-        # Use the last step goal as the current pose in the next step to ensure consistent step
-        # chaining
-        self.__current_pose = step_goal
 
     def set_action(self, *, action: np.ndarray):
         self.__goal_pose = self.current_pose @ action
