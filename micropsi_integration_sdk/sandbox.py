@@ -129,6 +129,7 @@ class RobotCommunication(threading.Thread):
         else:
             angular_step = np.identity(3)
             angular_step_vector = np.zeros(3)
+
         step = np.identity(4)
         step[:3, :3] = angular_step
         step[:3, 3] = linear_step
@@ -137,9 +138,15 @@ class RobotCommunication(threading.Thread):
 
         if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
             self.__interface.send_goal_pose(goal_pose=step_goal, step_count=self.__step_count)
+
         elif isinstance(self.__interface, robot_sdk.CartesianVelocityRobot):
-            cartesian_velocity = np.hstack((linear_step, angular_step_vector)) * self.__frequency
+            # Convert tool-frame step vectors to base which send_velocity expects
+            R_curr = self.current_pose[:3, :3]
+            linear_step_base = R_curr @ linear_step
+            angular_step_vector_base = R_curr @ angular_step_vector
+            cartesian_velocity = np.hstack((linear_step_base, angular_step_vector_base)) * self.__frequency
             self.__interface.send_velocity(velocity=cartesian_velocity, step_count=self.__step_count)
+
         elif isinstance(self.__interface, robot_sdk.JointPositionRobot):
             joint_goal = self.__interface.inverse_kinematics(
                 end_effector_pose=step_goal, joint_reference=self.state.joint_positions)
@@ -147,6 +154,7 @@ class RobotCommunication(threading.Thread):
                 raise RuntimeError("Encountered unsafe joint_positions.")
             self.__interface.send_joint_positions(joint_positions=joint_goal,
                                                   step_count=self.__step_count)
+
         elif isinstance(self.__interface, robot_sdk.JointSpeedRobot):
             joint_goal = self.__interface.inverse_kinematics(
                 end_effector_pose=step_goal, joint_reference=self.state.joint_positions)
