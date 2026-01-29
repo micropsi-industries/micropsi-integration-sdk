@@ -164,6 +164,11 @@ class RobotCommunication(threading.Thread):
 
     def set_action(self, *, action: np.ndarray):
         self.__goal_pose = self.current_pose @ action
+        LOG.debug(f"=====================")
+        LOG.debug(f"Current pose:\n{self.current_pose}")
+        LOG.debug(f"Action:\n{action}")
+        LOG.debug(f"New goal:\n{self.__goal_pose}")
+        LOG.debug(f"=====================")
         self.wait_for_state()
 
     def __at_goal(self) -> bool:
