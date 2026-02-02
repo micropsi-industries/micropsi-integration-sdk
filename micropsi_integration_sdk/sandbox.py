@@ -10,6 +10,7 @@ import numpy as np
 from pyquaternion import Quaternion
 
 import micropsi_integration_sdk.toolbox as toolbox
+from micropsi_integration_sdk.sandbox_motion_generation import get_step_towards_goal
 from micropsi_integration_sdk import robot_sdk
 from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCollection
 
@@ -49,6 +50,7 @@ class RobotCommunication(threading.Thread):
         self.__max_angular_step = speed_limit_angular / self.__frequency
         self.__end_effector_accuracy_linear = tolerance_linear
         self.__end_effector_accuracy_angular = tolerance_angular
+        self.__slowdown_steps = self.interface.get_slowdown_steps_in_seconds() * self.__frequency # TODO verify
         self.__goal_pose = None
         self.__running = True
         self.__state = None
@@ -107,46 +109,29 @@ class RobotCommunication(threading.Thread):
             self.__goal_reached.set()
             return
 
-        displacement = toolbox.invert_transform(matrix=self.current_pose) @ self.__goal_pose
-        linear_displacement = displacement[:3, 3]
-        linear_distance = np.linalg.norm(linear_displacement)
-        if linear_distance > 0:
-            linear_direction = linear_displacement / linear_distance
-            linear_step_displacement = min(self.__max_linear_step,
-                                           linear_distance / 2)
-            linear_step = linear_step_displacement * linear_direction
-        else:
-            linear_step = np.zeros(3)
+        # compute one incremental pose change towards the goal, in
+        # translation (3D array) and rotation (pyquaternion.Quaternion).
+        linear_step, angular_step = get_step_towards_goal(
+            current_xyz = self.current_pose[:3,3],
+            current_q = Quaternion(matrix=self.current_pose[:3, :3]),
+            goal_xyz = self.__goal_pose[:3,3],
+            goal_q = Quaternion(matrix=self.__goal_pose[:3, :3]),
+            stepsize_xyz = self.__max_linear_step,
+            stepsize_rot = self.__max_angular_step,
+            slowdown_steps= self.__slowdown_steps,
+        )
 
-        angular_displacement = Quaternion(matrix=displacement[:3, :3])
-        angular_step_displacement = min(self.__max_angular_step,
-                                        angular_displacement.radians / 2)
-        if angular_step_displacement > 0:
-            angular_step_quaternion = Quaternion(
-                axis=angular_displacement.axis,
-                radians=angular_step_displacement
-            )
-            angular_step = angular_step_quaternion.rotation_matrix
-            angular_step_vector = angular_step_quaternion.axis * angular_step_displacement
-        else:
-            angular_step = np.identity(3)
-            angular_step_vector = np.zeros(3)
-
-        step = np.identity(4)
-        step[:3, :3] = angular_step
-        step[:3, 3] = linear_step
-        step_goal = self.current_pose @ step
-        # LOG.debug("Target pose:\n%s", step_goal)
+        step_goal = np.identity(4)
+        step_goal[:3, :3] = angular_step.rotation_matrix
+        step_goal[:3, 3] = linear_step
 
         if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
             self.__interface.send_goal_pose(goal_pose=step_goal, step_count=self.__step_count)
 
         elif isinstance(self.__interface, robot_sdk.CartesianVelocityRobot):
-            # Convert tool-frame step vectors to base which send_velocity expects
-            R_curr = self.current_pose[:3, :3]
-            linear_step_base = R_curr @ linear_step
-            angular_step_vector_base = R_curr @ angular_step_vector
-            cartesian_velocity = np.hstack((linear_step_base, angular_step_vector_base)) * self.__frequency
+            linear_velocity = linear_step * self.__frequency
+            angular_velocity = angular_step.axis * angular_step.radians * self.__frequency
+            cartesian_velocity = np.concatenate([linear_velocity, angular_velocity])
             self.__interface.send_velocity(velocity=cartesian_velocity, step_count=self.__step_count)
 
         elif isinstance(self.__interface, robot_sdk.JointPositionRobot):
