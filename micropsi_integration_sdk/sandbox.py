@@ -116,6 +116,7 @@ class RobotCommunication(threading.Thread):
 
         # compute one incremental pose change towards the goal, in
         # translation (3D array) and rotation (pyquaternion.Quaternion).
+        # This is a delta, i.e. relative to current pose, expressed in base.
         linear_step, angular_step = get_step_towards_goal(
             current_xyz = self.current_pose[:3,3],
             current_q = Quaternion(matrix=self.current_pose[:3, :3]),
@@ -126,9 +127,10 @@ class RobotCommunication(threading.Thread):
             slowdown_steps= self.__slowdown_steps,
         )
 
+        # apply delta
         step_goal = np.identity(4)
-        step_goal[:3, :3] = angular_step.rotation_matrix
-        step_goal[:3, 3] = linear_step
+        step_goal[:3, :3] = angular_step.rotation_matrix @ self.current_pose[:3, :3]
+        step_goal[:3, 3] = self.current_pose[:3, 3] + linear_step
 
         if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
             self.__interface.send_goal_pose(goal_pose=step_goal, step_count=self.__step_count)
