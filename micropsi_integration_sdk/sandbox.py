@@ -20,8 +20,11 @@ DEFAULT_IP = "192.168.100.100"
 MAX_EE_SPEED = 0.1  # m/s
 DEFAULT_EE_SPEED = 0.05  # m/s
 
-MAX_EE_SPEED_ANGULAR = np.deg2rad(40)  # rad/s
-DEFAULT_EE_SPEED_ANGULAR = np.deg2rad(15)  # rad/s
+#MAX_EE_SPEED_ANGULAR = np.deg2rad(40)  # rad/s
+#DEFAULT_EE_SPEED_ANGULAR = np.deg2rad(15)  # rad/s
+
+MAX_EE_SPEED_ANGULAR = 30.0
+DEFAULT_EE_SPEED_ANGULAR = 5.0
 
 DEFAULT_ACC = 1e-3
 DEFAULT_ACC_ANGULAR = 1e-2
@@ -50,7 +53,9 @@ class RobotCommunication(threading.Thread):
         self.__max_angular_step = speed_limit_angular / self.__frequency
         self.__end_effector_accuracy_linear = tolerance_linear
         self.__end_effector_accuracy_angular = tolerance_angular
-        self.__slowdown_steps = self.interface.get_slowdown_steps_in_seconds() * self.__frequency # TODO verify
+        self.__slowdown_steps = (
+            self.__interface.get_slowdown_steps_in_seconds() * self.__frequency
+        )  # TODO verify
         self.__goal_pose = None
         self.__running = True
         self.__state = None
@@ -232,6 +237,11 @@ def parse_args():
                         help="Only test translational movements.")
     parser.add_argument("--rotation-only", action="store_true",
                         help="Only test rotational movements.")
+    parser.add_argument("--rotation-sequence-zyx", action="store_true",
+                        help="Test consecutive rotations in Z-Y-X order (then inverse), "
+                             "using max-distance-degrees.")
+    parser.add_argument("--rotation-sequence-zyx-only", action="store_true",
+                        help="Only run the Z-Y-X rotation sequence (then inverse).")
     parser.add_argument("--max-distance-translation", default=DEF_MAX_DISTANCE_TRANSLATION, type=float,
                         help="Maximum distance for translational movements, meters.\n"
                              "Default: {}".format(DEF_MAX_DISTANCE_TRANSLATION))
@@ -294,6 +304,12 @@ def main(args=None):
     if translation_only and rotation_only:
         print("Error: Can't do both --translation-only and --rotation-only")
         sys.exit(1)
+    if translation_only and args.rotation_sequence_zyx:
+        print("Error: Can't do --rotation-sequence-zyx with --translation-only")
+        sys.exit(1)
+    if translation_only and args.rotation_sequence_zyx_only:
+        print("Error: Can't do --rotation-sequence-zyx-only with --translation-only")
+        sys.exit(1)
 
     max_distance_translation = args.max_distance_translation
     max_distance_degrees = args.max_distance_degrees
@@ -339,11 +355,24 @@ def main(args=None):
 
         with controlled(interface):
             pose_changes, descriptions = toolbox.generate_actions(
-                do_translation=not rotation_only,
-                do_rotation=not translation_only,
+                do_translation=(not rotation_only and not args.rotation_sequence_zyx_only),
+                do_rotation=(not translation_only and not args.rotation_sequence_zyx_only),
                 max_distance_translation=max_distance_translation,
                 max_distance_degrees=max_distance_degrees
             )
+            if args.rotation_sequence_zyx or args.rotation_sequence_zyx_only:
+                angle_rad = np.deg2rad(max_distance_degrees)
+                seq = [
+                    (np.array([0, 0, 1]), +angle_rad, "seq +rz"),
+                    (np.array([0, 1, 0]), +angle_rad, "seq +ry"),
+                    (np.array([1, 0, 0]), +angle_rad, "seq +rx"),
+                    (np.array([1, 0, 0]), -angle_rad, "seq -rx"),
+                    (np.array([0, 1, 0]), -angle_rad, "seq -ry"),
+                    (np.array([0, 0, 1]), -angle_rad, "seq -rz"),
+                ]
+                for axis, angle, label in seq:
+                    pose_changes.append(toolbox._rotation_matrix(axis, angle))
+                    descriptions.append(f"{label} ({max_distance_degrees:.1f}°)")
             total = len(pose_changes)
             for idx, (pose_change, desc) in enumerate(zip(pose_changes, descriptions)):
                 LOG.info(f"Testing movement {idx + 1}/{total}: {desc}")
