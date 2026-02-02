@@ -3,6 +3,7 @@ from argparse import Namespace
 import pytest
 
 from micropsi_integration_sdk.sandbox import main as sandbox_main
+from micropsi_integration_sdk.sandbox import DEFAULT_EE_SPEED, DEFAULT_EE_SPEED_ANGULAR
 
 
 @pytest.mark.parametrize(
@@ -16,15 +17,10 @@ from micropsi_integration_sdk.sandbox import main as sandbox_main
 def test_sandbox(path_model):
     path, model = path_model
     args = Namespace(
-        verbose=False,
         path=path,
         model=model,
         ip_address="localhost",
-        length=.01,
-        tolerance_linear=.001,
-        tolerance_angular=.001,
-        speed_linear=.1,
-        speed_angular=.1,
-        dimension=3,
+        speed_linear=DEFAULT_EE_SPEED * 2,
+        speed_angular=DEFAULT_EE_SPEED_ANGULAR * 5,
     )
     sandbox_main(args)
