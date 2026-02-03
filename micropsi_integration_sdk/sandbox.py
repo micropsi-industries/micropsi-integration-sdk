@@ -235,15 +235,12 @@ def parse_args(args=None):
                         help="Angular end-effector speed, radians per second.\n"
                              "Default: {}, Max: {}".format(DEFAULT_EE_SPEED_ANGULAR,
                                                            MAX_EE_SPEED_ANGULAR))
-    parser.add_argument("--translation-only", action="store_true",
-                        help="Only test translational movements.")
-    parser.add_argument("--rotation-only", action="store_true",
-                        help="Only test rotational movements.")
-    parser.add_argument("--rotation-sequence-zyx", action="store_true",
-                        help="Test consecutive rotations in Z-Y-X order (then inverse), "
-                             "using max-distance-degrees.")
-    parser.add_argument("--rotation-sequence-zyx-only", action="store_true",
-                        help="Only run the Z-Y-X rotation sequence (then inverse).")
+    parser.add_argument("--test", nargs="*", default=None,
+                        choices=["translations", "single-rotations", "chained-rotations"],
+                        help="Select which tests to run, can specify one or multiple.\n"
+                             "Choices: translations, single-rotations, chained-rotations.\n"
+                             "Default: run all.")
+
     parser.add_argument("--max-distance-translation", default=DEF_MAX_DISTANCE_TRANSLATION, type=float,
                         help="Maximum distance for translational movements, meters.\n"
                              "Default: {}".format(DEF_MAX_DISTANCE_TRANSLATION))
@@ -263,21 +260,24 @@ def parse_args(args=None):
                         help="Enable debug logging.")
 
     parser.add_argument("-d", "--dimension", type=int, default=None,
-                        help="DEPRECATED: See --translation-only or --rotation-only")
+                        help="DEPRECATED: See --test")
     parser.add_argument("-l", "--length", type=float, default=None,
                         help="DEPRECATED: See --max-distance-translation and --max-distance-degrees")
 
-    return parser.parse_args()
+    return parser.parse_args(args=args)
 
 
 def _check_deprecated_arguments(args):
     if args.dimension is not None:
         print(
             "  --dimension / -d is deprecated.\n"
-            "    Use --translation-only to test only translational movements,\n"
-            "    or --rotation-only to test only rotational movements.\n"
-            "    By default, both translational and rotational movements are tested."
+            "    Use --test to select which tests to run:\n"
+            "      --test translations\n"
+            "      --test single-rotations\n"
+            "      --test chained-rotations\n"
+            "    By default, translations and single-rotations are run."
         )
+        sys.exit(1)
 
     if args.length is not None:
         print(
@@ -305,18 +305,12 @@ def main(args=None):
     robot_model = args.model
     robot_ip = args.ip_address
 
-    translation_only = args.translation_only
-    rotation_only = args.rotation_only
-
-    if translation_only and rotation_only:
-        print("Error: Can't do both --translation-only and --rotation-only")
-        sys.exit(1)
-    if translation_only and args.rotation_sequence_zyx:
-        print("Error: Can't do --rotation-sequence-zyx with --translation-only")
-        sys.exit(1)
-    if translation_only and args.rotation_sequence_zyx_only:
-        print("Error: Can't do --rotation-sequence-zyx-only with --translation-only")
-        sys.exit(1)
+    # Determine which tests to run
+    if args.test is None or len(args.test) == 0:
+        # Default: run all tests
+        tests_to_run = {"translations", "single-rotations", "chained-rotations"}
+    else:
+        tests_to_run = set(args.test)
 
     max_distance_translation = args.max_distance_translation
     max_distance_degrees = args.max_distance_degrees
@@ -361,32 +355,30 @@ def main(args=None):
         preflight_checks(interface=interface, controller=controller)
 
         with controlled(interface):
-            pose_changes, descriptions = toolbox.generate_actions(
-                do_translation=(not rotation_only and not args.rotation_sequence_zyx_only),
-                do_rotation=(not translation_only and not args.rotation_sequence_zyx_only),
-                max_distance_translation=max_distance_translation,
-                max_distance_degrees=max_distance_degrees
-            )
-            if args.rotation_sequence_zyx or args.rotation_sequence_zyx_only:
-                angle_rad = np.deg2rad(max_distance_degrees)
-                seq = [
-                    (np.array([0, 0, 1]), +angle_rad, "seq +rz"),
-                    (np.array([0, 1, 0]), +angle_rad, "seq +ry"),
-                    (np.array([1, 0, 0]), +angle_rad, "seq +rx"),
-                    (np.array([1, 0, 0]), -angle_rad, "seq -rx"),
-                    (np.array([0, 1, 0]), -angle_rad, "seq -ry"),
-                    (np.array([0, 0, 1]), -angle_rad, "seq -rz"),
-                ]
-                for axis, angle, label in seq:
-                    pose_changes.append(toolbox._rotation_matrix(axis, angle))
-                    descriptions.append(f"{label} ({max_distance_degrees:.1f}°)")
+            pose_changes = []
+            descriptions = []
+
+            if "translations" in tests_to_run:
+                actions, descs = toolbox.generate_translations(max_distance_translation)
+                pose_changes.extend(actions)
+                descriptions.extend(descs)
+
+            if "single-rotations" in tests_to_run:
+                actions, descs = toolbox.generate_single_rotations(max_distance_degrees)
+                pose_changes.extend(actions)
+                descriptions.extend(descs)
+
+            if "chained-rotations" in tests_to_run:
+                actions, descs = toolbox.generate_chained_rotations(max_distance_degrees)
+                pose_changes.extend(actions)
+                descriptions.extend(descs)
+
             total = len(pose_changes)
             for idx, (pose_change, desc) in enumerate(zip(pose_changes, descriptions)):
                 LOG.info(f"Testing movement {idx + 1}/{total}: {desc}")
                 controller.set_action(action=pose_change)
                 if not controller.wait_for_goal():
-                    raise RuntimeError("Timed out while waiting for the robot to achieve the "
-                                       "goal.")
+                    raise RuntimeError("Timed out while waiting for the robot to achieve the goal.")
 
 
 @contextmanager
