@@ -218,7 +218,7 @@ class RobotCommunication(threading.Thread):
         return self.__state_received.wait(timeout=timeout)
 
 
-def parse_args():
+def parse_args(args=None):
     parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool",
                             epilog='Usage example: %s ./examples/cartesian_velocity_robot.py'
                                    % os.path.basename(sys.argv[0]),
@@ -285,14 +285,19 @@ def _check_deprecated_arguments(args):
             "    Use --max-distance-translation to set the maximum translation distance (meters),\n"
             "    and --max-distance-degrees to set the maximum rotational movement distance (degrees)."
         )
-
-    if args.dimension is not None or args.length is not None:
         sys.exit(1)
-
 
 def main(args=None):
     if args is None:
+        # We're running from the command line: args just come from the shell
         args = parse_args()
+    else:
+        # We're running from e.g. pytest: Args are passed in by our caller
+        defaults = parse_args(['dummypath'])
+        for key, value in vars(args).items():
+            setattr(defaults, key, value)
+        args = defaults
+
     _check_deprecated_arguments(args)
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
