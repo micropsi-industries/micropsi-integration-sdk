@@ -20,7 +20,7 @@ def test_sandbox(path_model):
         path=path,
         model=model,
         ip_address="localhost",
-        speed_linear=DEFAULT_EE_SPEED_LINEAR * 2,
-        speed_angular=DEFAULT_EE_SPEED_ROT_DEGREES * 5,
+        speed_linear=DEFAULT_EE_SPEED_LINEAR * 10,
+        speed_rotation=DEFAULT_EE_SPEED_ROT_DEGREES * 10,
     )
     sandbox_main(args)
