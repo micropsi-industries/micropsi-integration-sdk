@@ -45,7 +45,7 @@ class RobotCommunication(threading.Thread):
         self.__end_effector_accuracy_rot_degrees = tolerance_rot_degrees
         self.__slowdown_steps = (
             self.__interface.get_slowdown_steps_in_seconds() * self.__frequency
-        )  # TODO verify
+        )
         self.__goal_pose = None
         self.__running = True
         self.__state = None
