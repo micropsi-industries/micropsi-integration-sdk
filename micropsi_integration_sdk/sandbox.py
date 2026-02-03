@@ -208,9 +208,31 @@ class RobotCommunication(threading.Thread):
         return self.__state_received.wait(timeout=timeout)
 
 
+
 def parse_args(args=None):
-    parser = ArgumentParser(description="Micropsi Industries Robot SDK Tool",
-                            epilog='Usage example: %s ./examples/cartesian_velocity_robot.py'
+    parser = ArgumentParser(description="""
+This will attempt to read poses and execute movements on a given robot interface.
+
+Expected outcome: The robot moves through the following sequence of waypoints,
+and ends up back at the start pose:
+
+    # translations:
+    1. Translate in tool +X by a set amount, then -X by the same amount (= return to origin)
+    2. Similar for tool +/- Y
+    3. Similar for tool +/- Z
+    # single rotations:
+    3. Rotate around tool +X by a set amount, then -X (= return to origin)
+    4. Similar for tool +/- Y
+    5. Similar for tool +/- Z
+    5. Rotate around the tool XY diagnonal, then return
+    6. Similar for the YZ diagonal
+    7. Similar for the XZ diagonal
+    # chained rotations:
+    8. Rotate around tool Z, then Y, then X; then return in the reverse order.
+
+See --help for config options (e.g. range of motion, speed, including/excluding some of the motions)
+""",
+                            epilog='Usage example: %s ../examples/cartesian_velocity_robot.py'
                                    % os.path.basename(sys.argv[0]),
                             formatter_class=RawTextHelpFormatter)
 
