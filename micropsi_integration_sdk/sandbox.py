@@ -17,25 +17,15 @@ from micropsi_integration_sdk.robot_interface_collection import RobotInterfaceCo
 LOG = logging.getLogger(__name__)
 
 DEFAULT_IP = "192.168.100.100"
-MAX_EE_SPEED = 0.1  # m/s
-DEFAULT_EE_SPEED = 0.05  # m/s
 
-#MAX_EE_SPEED_ANGULAR = np.deg2rad(40)  # rad/s
-#DEFAULT_EE_SPEED_ANGULAR = np.deg2rad(15)  # rad/s
+DEFAULT_EE_SPEED_LINEAR = 0.05  # m/s
+DEFAULT_EE_SPEED_ROT_DEGREES = 5.0  # °/s
 
-MAX_EE_SPEED_ANGULAR = 30.0
-DEFAULT_EE_SPEED_ANGULAR = 5.0
-
-DEFAULT_ACC = 1e-3
-DEFAULT_ACC_ANGULAR = 1e-2
-ACCURACY_MAX = 0.1
-
-MAX_LINEAR_MOVEMENT = 0.1
+DEFAULT_ACC_LINEAR = 0.001 # m
+DEFAULT_ACC_ROT_DEGREES = 0.5 # °
 
 DEF_MAX_DISTANCE_TRANSLATION = 0.05  # meters
-DEF_MAX_DISTANCE_DEGREES = 10.0  # degrees
-
-TIMEOUT = 5
+DEF_MAX_DISTANCE_ROT_DEGREES = 10.0  # °
 
 
 class RobotCommunication(threading.Thread):
@@ -44,15 +34,15 @@ class RobotCommunication(threading.Thread):
     """
 
     def __init__(self, *, robot_interface: robot_sdk.RobotInterface, tolerance_linear,
-                 tolerance_angular, speed_limit_linear, speed_limit_angular):
+                 tolerance_rot_degrees, speed_limit_linear, speed_limit_rot):
         super().__init__(name="RobotCommunication", daemon=True)
         self.__frequency = robot_interface.get_frequency()
         self.__step_count = 0
         self.__interface: robot_sdk.RobotInterface = robot_interface
         self.__max_linear_step = speed_limit_linear / self.__frequency
-        self.__max_angular_step = speed_limit_angular / self.__frequency
+        self.__max_rotation_step = speed_limit_rot / self.__frequency
         self.__end_effector_accuracy_linear = tolerance_linear
-        self.__end_effector_accuracy_angular = tolerance_angular
+        self.__end_effector_accuracy_rot_degrees = tolerance_rot_degrees
         self.__slowdown_steps = (
             self.__interface.get_slowdown_steps_in_seconds() * self.__frequency
         )  # TODO verify
@@ -117,19 +107,19 @@ class RobotCommunication(threading.Thread):
         # compute one incremental pose change towards the goal, in
         # translation (3D array) and rotation (pyquaternion.Quaternion).
         # This is a delta, i.e. relative to current pose, expressed in base.
-        linear_step, angular_step = get_step_towards_goal(
+        linear_step, rotation_step_quat = get_step_towards_goal(
             current_xyz = self.current_pose[:3,3],
             current_q = Quaternion(matrix=self.current_pose[:3, :3]),
             goal_xyz = self.__goal_pose[:3,3],
             goal_q = Quaternion(matrix=self.__goal_pose[:3, :3]),
             stepsize_xyz = self.__max_linear_step,
-            stepsize_rot = self.__max_angular_step,
+            stepsize_rot = self.__max_rotation_step,
             slowdown_steps= self.__slowdown_steps,
         )
 
         # apply delta
         step_goal = np.identity(4)
-        step_goal[:3, :3] = angular_step.rotation_matrix @ self.current_pose[:3, :3]
+        step_goal[:3, :3] = rotation_step_quat.rotation_matrix @ self.current_pose[:3, :3]
         step_goal[:3, 3] = self.current_pose[:3, 3] + linear_step
 
         if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
@@ -137,7 +127,7 @@ class RobotCommunication(threading.Thread):
 
         elif isinstance(self.__interface, robot_sdk.CartesianVelocityRobot):
             linear_velocity = linear_step * self.__frequency
-            angular_velocity = angular_step.axis * angular_step.radians * self.__frequency
+            angular_velocity = rotation_step_quat.axis * rotation_step_quat.radians * self.__frequency
             cartesian_velocity = np.concatenate([linear_velocity, angular_velocity])
             self.__interface.send_velocity(velocity=cartesian_velocity, step_count=self.__step_count)
 
@@ -177,11 +167,11 @@ class RobotCommunication(threading.Thread):
         linear_distance = np.linalg.norm(goal_translate - current_translate)
         current_rotate = Quaternion(matrix=self.current_pose[:3, :3])
         goal_rotate = Quaternion(matrix=goal_pose[:3, :3])
-        angular_distance = (current_rotate.conjugate * goal_rotate).radians
-        LOG.debug("linear distance: %.2f", linear_distance)
-        LOG.debug("angular distance: %.2f", angular_distance)
+        rotation_distance = (current_rotate.conjugate * goal_rotate).degrees
+        LOG.debug("Linear distance: %.2fm", linear_distance)
+        LOG.debug("Rotation distance: %.2f°", rotation_distance)
         return (abs(linear_distance) < self.__end_effector_accuracy_linear
-                and abs(angular_distance) < self.__end_effector_accuracy_angular)
+                and abs(rotation_distance) < self.__end_effector_accuracy_rot_degrees)
 
     def get_state(self):
         """
@@ -226,15 +216,22 @@ def parse_args(args=None):
 
     parser.add_argument("path",
                         help="Path to the robot implementation")
+
     parser.add_argument("-m", "--model", type=str,
                         help="Name of the robot model as defined in the implementation.")
-    parser.add_argument("-sl", "--speed-linear", default=DEFAULT_EE_SPEED, type=float,
-                        help="Linear end-effector speed, meters per second.\n"
-                             "Default: {}, Max: {}".format(DEFAULT_EE_SPEED, MAX_EE_SPEED))
-    parser.add_argument("-sa", "--speed-angular", default=DEFAULT_EE_SPEED_ANGULAR, type=float,
-                        help="Angular end-effector speed, radians per second.\n"
-                             "Default: {}, Max: {}".format(DEFAULT_EE_SPEED_ANGULAR,
-                                                           MAX_EE_SPEED_ANGULAR))
+
+    parser.add_argument("-ip", "--ip-address", default=DEFAULT_IP, type=str,
+                        help=f"IP address of the robot.\n"
+                             f"Default: {DEFAULT_IP}")
+
+    parser.add_argument("-sl", "--speed-linear", default=DEFAULT_EE_SPEED_LINEAR, type=float,
+                        help=f"Linear end-effector speed, meters per second.\n"
+                             f"Default: {DEFAULT_EE_SPEED_LINEAR}")
+
+    parser.add_argument("-sa", "--speed-rotation", default=DEFAULT_EE_SPEED_ROT_DEGREES, type=float,
+                        help=f"Rotational end-effector speed, degrees per second.\n"
+                             f"Default: {DEFAULT_EE_SPEED_ROT_DEGREES}°")
+
     parser.add_argument("--test", nargs="*", default=None,
                         choices=["translations", "single-rotations", "chained-rotations"],
                         help="Select which tests to run, can specify one or multiple.\n"
@@ -242,20 +239,21 @@ def parse_args(args=None):
                              "Default: run all.")
 
     parser.add_argument("--max-distance-translation", default=DEF_MAX_DISTANCE_TRANSLATION, type=float,
-                        help="Maximum distance for translational movements, meters.\n"
-                             "Default: {}".format(DEF_MAX_DISTANCE_TRANSLATION))
-    parser.add_argument("--max-distance-degrees", default=DEF_MAX_DISTANCE_DEGREES, type=float,
-                        help="Maximum distance for rotational movements, degrees.\n"
-                             "Default: {}".format(DEF_MAX_DISTANCE_DEGREES))
-    parser.add_argument("-ip", "--ip-address", default=DEFAULT_IP, type=str,
-                        help="IP address of the robot.\n"
-                             "Default: {}".format(DEFAULT_IP))
-    parser.add_argument("-tl", "--tolerance-linear", default=DEFAULT_ACC, type=float,
-                        help="Linear tolerance of the end-effector position achieved by robot.\n"
-                             "Default: {} meters".format(DEFAULT_ACC))
-    parser.add_argument("-ta", "--tolerance-angular", default=DEFAULT_ACC, type=float,
-                        help="Angular tolerance of the end-effector position achieved by robot.\n"
-                             "Default: {} radians".format(DEFAULT_ACC_ANGULAR))
+                        help=f"Maximum distance for translational movements, meters.\n"
+                             f"Default: {DEF_MAX_DISTANCE_TRANSLATION}")
+
+    parser.add_argument("--max-distance-degrees", default=DEF_MAX_DISTANCE_ROT_DEGREES, type=float,
+                        help=f"Maximum distance for rotational movements, degrees.\n"
+                             f"Default: {DEF_MAX_DISTANCE_ROT_DEGREES}°")
+
+    parser.add_argument("-tl", "--tolerance-linear", default=DEFAULT_ACC_LINEAR, type=float,
+                        help=f"Consider a position linearly reached when within this distance, meters\n"
+                             f"Default: {DEFAULT_ACC_LINEAR}m")
+
+    parser.add_argument("-ta", "--tolerance-rotation", default=DEFAULT_ACC_ROT_DEGREES, type=float,
+                        help=f"Consider a position rotationally reached when within this distance, degrees\n"
+                             f"Default: {DEFAULT_ACC_ROT_DEGREES}°")
+
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Enable debug logging.")
 
@@ -315,10 +313,10 @@ def main(args=None):
     max_distance_translation = args.max_distance_translation
     max_distance_degrees = args.max_distance_degrees
 
-    tolerance_linear = min(args.tolerance_linear, ACCURACY_MAX)
-    tolerance_angular = min(args.tolerance_angular, ACCURACY_MAX)
-    speed_limit_linear = min(args.speed_linear, MAX_EE_SPEED)
-    speed_limit_angular = min(args.speed_angular, MAX_EE_SPEED_ANGULAR)
+    tolerance_linear = args.tolerance_linear
+    tolerance_rot_degrees = args.tolerance_rotation
+    speed_limit_linear = args.speed_linear
+    speed_limit_rot =args.speed_rotation
 
     robot_path = toolbox.extract_path(path)
 
@@ -348,9 +346,9 @@ def main(args=None):
     with connected(interface):
         controller = RobotCommunication(robot_interface=interface,
                                         tolerance_linear=tolerance_linear,
-                                        tolerance_angular=tolerance_angular,
+                                        tolerance_rot_degrees=tolerance_rot_degrees,
                                         speed_limit_linear=speed_limit_linear,
-                                        speed_limit_angular=speed_limit_angular)
+                                        speed_limit_rot=speed_limit_rot)
 
         preflight_checks(interface=interface, controller=controller)
 
