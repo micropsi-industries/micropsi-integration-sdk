@@ -1,3 +1,8 @@
+"""
+Helper for sandbox.py, generating incremental pose changes towards a waypoint.
+
+This is bascially identical to MIRAI's go_to_goal node ('rubberband effect') .
+"""
 
 import numpy as np
 from numpy.linalg import norm
