@@ -33,6 +33,6 @@ ${PYTHON} setup.py sdist
 echo "build complete"
 
 # Upload to pypi
-${PYTHON} -m twine upload "dist/micropsi-integration-sdk-${TAG}.tar.gz"
+${PYTHON} -m twine upload "dist/micropsi_integration_sdk-${TAG}.tar.gz"
 echo "Upload complete"
 echo "Go to https://github.com/micropsi-industries/micropsi-integration-sdk and make a release from the '${TAG}' tag."
