@@ -26,7 +26,7 @@ setup(
     long_description=read_relative('README.md'),
     long_description_content_type='text/markdown',
     packages=find_packages(),
-    install_requires=["numpy", "pyquaternion"],
+    install_requires=["numpy", "pyquaternion", "scipy"],
     extras_require={
         'test': ["pytest"],
     },

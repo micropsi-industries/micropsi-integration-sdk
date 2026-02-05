@@ -33,50 +33,85 @@ hardware.
 They can be used as a starting point when developing a new robot implementation.
 
 ## Mirai sandbox
-Standalone tool to test the SDK-based Robot control implementation.
-Moves the robot and verifies the implementation of methods described in Robot SDK. In particular
-the implementation of the high-frequency control loop. 
-The direction (x, y or z axis) and length of the test movement can be configured.
-```bash
-usage: mirai-sandbox [-h] [-m MODEL] [-sl SPEED_LINEAR] [-sa SPEED_ANGULAR]
-                     [-d DIMENSION] [-l LENGTH] [-ip IP_ADDRESS]
-                     [-tl TOLERANCE_LINEAR] [-ta TOLERANCE_ANGULAR] [-v]
+Standalone tool to test an SDK-based robot interface implementation. This will attempt
+to read robot poses and send movement commands in ways similar to Mirai, helping to
+uncover problems related to geometry and real time control.
+
+If successful, the robot will go through a defined sequence of tool pose changes
+and return to its start pose. See `--help` or below for details.
+
+**CAUTION**
+This will attempt to move the robot. Although this tool (by default) only
+outputs low-speed commands, prepare for unexpected behavior including large,
+high-speed movements when testing with a newly written interface.
+
+```
+usage: mirai-sandbox [-h] [-m MODEL] [-ip IP_ADDRESS] [-sl SPEED_LINEAR] [-sa SPEED_ROTATION] [--test [{translations,single-rotations,chained-rotations} ...]] [--max-distance-translation MAX_DISTANCE_TRANSLATION]
+                     [--max-distance-degrees MAX_DISTANCE_DEGREES] [-tl TOLERANCE_LINEAR] [-ta TOLERANCE_ROTATION] [-v] [-d DIMENSION] [-l LENGTH]
                      path
 
-Micropsi Industries Robot SDK Tool
+This will attempt to read poses and execute movements on a given robot interface.
+
+Expected outcome: The robot moves through the following sequence of waypoints,
+and ends up back at the start pose:
+
+    # translations:
+    1. Translate in tool +X by a set amount, then -X by the same amount (= return to origin)
+    2. Similar for tool +/- Y
+    3. Similar for tool +/- Z
+    # single rotations:
+    4. Rotate around tool +X by a set amount, then -X (= return to origin)
+    5. Similar for tool +/- Y
+    6. Similar for tool +/- Z
+    7. Rotate around the tool XY diagonal, then return
+    8. Similar for the YZ diagonal
+    9. Similar for the XZ diagonal
+    # chained rotations:
+    10. Rotate around tool Z, then Y, then X; then return in the reverse order.
+
+See --help for config options (e.g. range of motion, speed, including/excluding some of the motions)
 
 positional arguments:
   path                  Path to the robot implementation
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -m MODEL, --model MODEL
                         Name of the robot model as defined in the implementation.
-  -sl SPEED_LINEAR, --speed-linear SPEED_LINEAR
-                        Linear end-effector speed, meters per second.
-                        Default: 0.05, Max: 0.1
-  -sa SPEED_ANGULAR, --speed-angular SPEED_ANGULAR
-                        Angular end-effector speed, radians per second.
-                        Default: 0.2617993877991494, Max: 0.6981317007977318
-  -d DIMENSION, --dimension DIMENSION
-                        Number of axes to move the robot in.
-                        Default: 1
-  -l LENGTH, --length LENGTH
-                        Length of test movement, meters.
-                        Default:0.05, Max: 0.1m
   -ip IP_ADDRESS, --ip-address IP_ADDRESS
                         IP address of the robot.
                         Default: 192.168.100.100
+  -sl SPEED_LINEAR, --speed-linear SPEED_LINEAR
+                        Linear end-effector speed, meters per second.
+                        Default: 0.05
+  -sa SPEED_ROTATION, --speed-rotation SPEED_ROTATION
+                        Rotational end-effector speed, degrees per second.
+                        Default: 5.0°
+  --test [{translations,single-rotations,chained-rotations} ...]
+                        Select which tests to run, can specify one or multiple.
+                        Choices: translations, single-rotations, chained-rotations.
+                        Default: run all.
+  --max-distance-translation MAX_DISTANCE_TRANSLATION
+                        Maximum distance for translational movements, meters.
+                        Default: 0.05
+  --max-distance-degrees MAX_DISTANCE_DEGREES
+                        Maximum distance for rotational movements, degrees.
+                        Default: 10.0°
   -tl TOLERANCE_LINEAR, --tolerance-linear TOLERANCE_LINEAR
-                        Linear tolerance of the end-effector position achieved by robot.
-                        Default: 0.001 meters
-  -ta TOLERANCE_ANGULAR, --tolerance-angular TOLERANCE_ANGULAR
-                        Angular tolerance of the end-effector position achieved by robot.
-                        Default: 0.01 radians
+                        Consider a position linearly reached when within this distance, meters
+                        Default: 0.001m
+  -ta TOLERANCE_ROTATION, --tolerance-rotation TOLERANCE_ROTATION
+                        Consider a position rotationally reached when within this distance, degrees
+                        Default: 0.5°
   -v, --verbose         Enable debug logging.
+  -d DIMENSION, --dimension DIMENSION
+                        OBSOLETE: See --test
+  -l LENGTH, --length LENGTH
+                        OBSOLETE: See --max-distance-translation and --max-distance-degrees
 
-Usage example: mirai-sandbox ./examples/cartesian_velocity_robot.py
+Usage example: mirai-sandbox ../examples/cartesian_velocity_robot.py
 ```
+
 ## Mirai dev server
 This tool simulates a mirai controller in certain (very simplified) ways.
 Once started, it listens on port 6599 for the commands sent by either your PLC or robot program,
