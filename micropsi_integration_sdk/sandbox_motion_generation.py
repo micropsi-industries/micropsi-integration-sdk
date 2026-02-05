@@ -48,7 +48,7 @@ def get_step_towards_goal(
                                                          stepsize_xyz,
                                                          stepsize_rot)
 
-    # asymptocically decrease the stepsize to always stay
+    # asymptotically decrease the stepsize to always stay 
     # N steps away from the goal
     if slowdown_steps * stepsize_xyz_m > dist_xyz:
         stepsize_xyz_m = dist_xyz / slowdown_steps

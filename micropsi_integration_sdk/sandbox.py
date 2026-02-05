@@ -221,14 +221,14 @@ and ends up back at the start pose:
     2. Similar for tool +/- Y
     3. Similar for tool +/- Z
     # single rotations:
-    3. Rotate around tool +X by a set amount, then -X (= return to origin)
-    4. Similar for tool +/- Y
-    5. Similar for tool +/- Z
-    5. Rotate around the tool XY diagnonal, then return
-    6. Similar for the YZ diagonal
-    7. Similar for the XZ diagonal
+    4. Rotate around tool +X by a set amount, then -X (= return to origin)
+    5. Similar for tool +/- Y
+    6. Similar for tool +/- Z
+    7. Rotate around the tool XY diagonal, then return
+    8. Similar for the YZ diagonal
+    9. Similar for the XZ diagonal
     # chained rotations:
-    8. Rotate around tool Z, then Y, then X; then return in the reverse order.
+    10. Rotate around tool Z, then Y, then X; then return in the reverse order.
 
 See --help for config options (e.g. range of motion, speed, including/excluding some of the motions)
 """,
@@ -280,17 +280,17 @@ See --help for config options (e.g. range of motion, speed, including/excluding 
                         help="Enable debug logging.")
 
     parser.add_argument("-d", "--dimension", type=int, default=None,
-                        help="DEPRECATED: See --test")
+                        help="OBSOLETE: See --test")
     parser.add_argument("-l", "--length", type=float, default=None,
-                        help="DEPRECATED: See --max-distance-translation and --max-distance-degrees")
+                        help="OBSOLETE: See --max-distance-translation and --max-distance-degrees")
 
     return parser.parse_args(args=args)
 
 
-def _check_deprecated_arguments(args):
+def _check_obsolete_arguments(args):
     if args.dimension is not None:
         print(
-            "  --dimension / -d is deprecated.\n"
+            "  --dimension / -d is obsolete.\n"
             "    Use --test to select which tests to run:\n"
             "      --test translations\n"
             "      --test single-rotations\n"
@@ -301,7 +301,7 @@ def _check_deprecated_arguments(args):
 
     if args.length is not None:
         print(
-            "  --length / -l is deprecated.\n"
+            "  --length / -l is obsolete.\n"
             "    Use --max-distance-translation to set the maximum translation distance (meters),\n"
             "    and --max-distance-degrees to set the maximum rotational movement distance (degrees)."
         )
@@ -318,7 +318,7 @@ def main(args=None):
             setattr(defaults, key, value)
         args = defaults
 
-    _check_deprecated_arguments(args)
+    _check_obsolete_arguments(args)
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     path = args.path
