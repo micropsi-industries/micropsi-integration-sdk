@@ -50,6 +50,7 @@ class RobotCommunication(threading.Thread):
         self.__running = True
         self.__state = None
         self.__current_pose = None
+        self.__projected_pose = None
 
         # thread management
         self.__state_received = threading.Event()
@@ -104,6 +105,9 @@ class RobotCommunication(threading.Thread):
             self.__goal_reached.set()
             return
 
+        if self.__projected_pose is None:
+            self.__projected_pose = self.current_pose
+
         # compute one incremental pose change towards the goal, in
         # translation (3D array) and rotation (pyquaternion.Quaternion).
         # This is a delta, i.e. relative to current pose, expressed in base.
@@ -117,10 +121,13 @@ class RobotCommunication(threading.Thread):
             slowdown_steps= self.__slowdown_steps,
         )
 
-        # apply delta
+        # apply delta to our best guess of the current pose at the time the
+        # robot sees the new goal (only relevant for pose-based interfaces)
         step_goal = np.identity(4)
-        step_goal[:3, :3] = rotation_step_quat.rotation_matrix @ self.current_pose[:3, :3]
-        step_goal[:3, 3] = self.current_pose[:3, 3] + linear_step
+        step_goal[:3, :3] = rotation_step_quat.rotation_matrix @ self.__projected_pose[:3, :3]
+        step_goal[:3, 3] = self.__projected_pose[:3, 3] + linear_step
+
+        self.__projected_pose = step_goal
 
         if isinstance(self.__interface, robot_sdk.CartesianPoseRobot):
             self.__interface.send_goal_pose(goal_pose=step_goal, step_count=self.__step_count)
