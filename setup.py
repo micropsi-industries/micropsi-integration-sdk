@@ -1,6 +1,5 @@
 import os
 
-from pkg_resources import get_build_platform
 from setuptools import setup, find_packages
 
 
@@ -37,7 +36,6 @@ setup(
             "mirai-dev-client=micropsi_integration_sdk.dev_client:main",
         ],
     },
-    platforms=[get_build_platform()],
     python_requires=">=3.10, <4",
     license="MIT",
 )
