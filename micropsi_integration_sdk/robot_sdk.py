@@ -89,6 +89,26 @@ class RobotInterface(ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    def get_max_linear_tcp_speed() -> Optional[float]:
+        """Return an optional maximum TCP linear speed in m/s.
+
+        The MicroPsi runtime will use this value to lower its configured TCP
+        linear-speed ceiling.
+        Returning None leaves the runtime's default unchanged.
+        """
+        return None
+
+    @staticmethod
+    def get_max_angular_tcp_speed() -> Optional[float]:
+        """Return an optional maximum TCP angular speed in degrees/s.
+
+        The MicroPsi runtime will use this value to lower its configured TCP
+        anguler-speed ceiling.
+        Returning None leaves the runtime's default unchanged.
+        """
+        return None
+
     @abstractmethod
     def get_joint_count(self) -> int:
         """
